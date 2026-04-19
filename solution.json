@@ -1,8 +1,9 @@
 {
   "id": "docs-retrieval",
   "name": "Docs Retrieval",
-  "version": "0.1.0",
-  "description": "Retrieval assistant for user document corpora. Indexes Dropbox folders into an embedding-backed index and answers questions with citations.",
+  "version": "0.3.1",
+  "description": "Two-skill orchestrator solution for technical/contract document retrieval, with a Dropbox setup wizard + corpus manager UI.",
+  "orchestrator_skill": "docs-librarian",
   "identity": {
     "actor_types": [],
     "admin_roles": [],
@@ -11,38 +12,46 @@
   },
   "skills": [
     {
-      "id": "docs-retrieval",
-      "name": "Docs Retrieval",
+      "id": "docs-librarian",
+      "name": "Docs Librarian",
+      "role": "orchestrator"
+    },
+    {
+      "id": "contract-analyst",
+      "name": "Contract Analyst",
       "role": "worker"
     }
   ],
   "grants": [],
   "handoffs": [],
   "routing": {
-    "telegram": {
-      "default_skill": "docs-retrieval"
-    },
-    "email": {
-      "default_skill": "docs-retrieval"
-    },
-    "web": {
-      "default_skill": "docs-retrieval"
-    }
+    "telegram": { "default_skill": "docs-librarian" },
+    "email":    { "default_skill": "docs-librarian" },
+    "web":      { "default_skill": "docs-librarian" }
   },
   "platform_connectors": [
     {
       "id": "docs-index-mcp",
       "required": true,
-      "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search)",
-      "used_by": [
-        "docs-retrieval"
-      ]
-    },
+      "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search, heading/section navigation)",
+      "used_by": ["docs-librarian", "contract-analyst"]
+    }
+  ],
+  "ui_plugins": [
     {
-      "id": "dropbox-mcp",
-      "description": "",
-      "required": true,
-      "used_by": []
+      "id": "mcp:docs-workbench-mcp:workbench",
+      "name": "Docs Workbench",
+      "version": "0.1.0",
+      "type": "ui",
+      "description": "Dropbox setup wizard + corpus manager. First-run entry point.",
+      "iframeUrl": "/ui/workbench/index.html",
+      "render": {
+        "mode": "iframe",
+        "iframeUrl": "/ui/workbench/index.html"
+      },
+      "capabilities": {},
+      "channels": ["command"],
+      "commands": []
     }
   ],
   "security_contracts": []
