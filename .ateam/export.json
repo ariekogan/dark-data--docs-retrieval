@@ -2,8 +2,9 @@
   "solution": {
     "id": "docs-retrieval",
     "name": "Docs Retrieval",
-    "version": "0.1.0",
-    "description": "Retrieval assistant for user document corpora. Indexes Dropbox folders into an embedding-backed index and answers questions with citations.",
+    "version": "0.3.1",
+    "description": "Two-skill orchestrator solution for technical/contract document retrieval, with a Dropbox setup wizard + corpus manager UI.",
+    "orchestrator_skill": "docs-librarian",
     "identity": {
       "actor_types": [],
       "admin_roles": [],
@@ -12,8 +13,13 @@
     },
     "skills": [
       {
-        "id": "docs-retrieval",
-        "name": "Docs Retrieval",
+        "id": "docs-librarian",
+        "name": "Docs Librarian",
+        "role": "orchestrator"
+      },
+      {
+        "id": "contract-analyst",
+        "name": "Contract Analyst",
         "role": "worker"
       }
     ],
@@ -21,1007 +27,117 @@
     "handoffs": [],
     "routing": {
       "telegram": {
-        "default_skill": "docs-retrieval"
+        "default_skill": "docs-librarian"
       },
       "email": {
-        "default_skill": "docs-retrieval"
+        "default_skill": "docs-librarian"
       },
       "web": {
-        "default_skill": "docs-retrieval"
+        "default_skill": "docs-librarian"
       }
     },
     "platform_connectors": [
       {
         "id": "docs-index-mcp",
         "required": true,
-        "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search)",
+        "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search, heading/section navigation)",
         "used_by": [
-          "docs-retrieval"
+          "docs-librarian",
+          "contract-analyst"
         ]
-      },
+      }
+    ],
+    "ui_plugins": [
       {
-        "id": "dropbox-mcp",
-        "description": "",
-        "required": true,
-        "used_by": []
+        "id": "mcp:docs-workbench-mcp:workbench",
+        "name": "Docs Workbench",
+        "version": "0.1.0",
+        "type": "ui",
+        "description": "Dropbox setup wizard + corpus manager. First-run entry point.",
+        "iframeUrl": "/ui/workbench/index.html",
+        "render": {
+          "mode": "iframe",
+          "iframeUrl": "/ui/workbench/index.html"
+        },
+        "capabilities": {},
+        "channels": [
+          "command"
+        ],
+        "commands": []
       }
     ],
     "security_contracts": []
   },
   "skills": [
     {
-      "description": "Answers user questions grounded in their indexed document corpora (Dropbox-sourced). Cites source files. Can index new folders on request.",
-      "version": "0.1.0",
-      "phase": "DEPLOYED",
+      "id": "contract-analyst",
+      "name": "Contract Analyst",
+      "description": "Deep reasoning specialist for technical/legal documents. Takes research dossiers from the librarian, does multi-hop reasoning, produces cited answers. Flags gaps.",
+      "version": "0.3.0",
+      "phase": "TOOL_DEFINITION",
+      "connectors": [
+        "docs-index-mcp"
+      ],
       "problem": {
-        "statement": "Users have large collections of documents in Dropbox (handbooks, reports, notes, papers) and need natural-language retrieval with citations. Browsing is too slow; keyword search on filenames misses semantic matches. The assistant should ingest folders on request, search semantically across indexed content, and ground its answers in retrieved chunks.",
-        "context": "Uses docs-index-mcp (platform connector, embeddings + cosine search) and dropbox-mcp (per-actor OAuth). Corpora are owned by individual actors; no cross-user access.",
+        "statement": "Multi-hop reasoning over technical/legal document corpora. Chain-of-liability analysis, cross-document comparison, reference resolution, structured synthesis. Receives a research dossier from the librarian, produces a grounded, cited answer. If the dossier is thin, requests more retrieval from the librarian rather than guessing.",
         "goals": [
-          "Answer factual questions from the user's corpus with verbatim citations (file path + heading)",
-          "Offer to index a Dropbox folder when a question can't be answered from existing corpora",
-          "Keep a tight feedback loop: when retrieval returns weak matches, say so rather than hallucinate"
+          "Ground every factual claim in a verbatim citation",
+          "Trace multi-hop references (clause \u2192 defined term \u2192 amendment)",
+          "Detect and flag gaps, conflicts, ambiguities",
+          "Produce scannable, structured answers"
         ]
       },
-      "scenarios": [
-        {
-          "id": "setup",
-          "title": "Start the Dropbox OAuth flow for the current user. Returns a URL to visit for consent.",
-          "description": "User triggers \"Start the Dropbox OAuth flow for the current user. Returns a URL to visit for consent.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls dropbox.setup — start the dropbox oauth flow for the current user. returns a url to visit for consent.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Start the Dropbox OAuth flow for the current user. Returns a URL to visit for consent.\" is handled successfully."
-        },
-        {
-          "id": "status",
-          "title": "Check if the current user has Dropbox connected.",
-          "description": "User triggers \"Check if the current user has Dropbox connected.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls dropbox.status — check if the current user has dropbox connected.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Check if the current user has Dropbox connected.\" is handled successfully."
-        },
-        {
-          "id": "search",
-          "title": "Dropbox's built-in filename/content search.",
-          "description": "User triggers \"Dropbox's built-in filename/content search.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls dropbox.search — dropbox's built-in filename/content search.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Dropbox's built-in filename/content search.\" is handled successfully."
-        },
-        {
-          "id": "index_folder",
-          "title": "Walk a Dropbox folder, download supported files, and ingest into a docs-index corpus. Resumable.",
-          "description": "User triggers \"Walk a Dropbox folder, download supported files, and ingest into a docs-index corpus. Resumable.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls dropbox.index_folder — walk a dropbox folder, download supported files, and ingest into a docs-index corpus. resumable.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Walk a Dropbox folder, download supported files, and ingest into a docs-index corpus. Resumable.\" is handled successfully."
-        },
-        {
-          "id": "upload",
-          "title": "Upload a file to Dropbox. Only after explicit user confirmation.",
-          "description": "User triggers \"Upload a file to Dropbox. Only after explicit user confirmation.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls dropbox.upload — upload a file to dropbox. only after explicit user confirmation.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Upload a file to Dropbox. Only after explicit user confirmation.\" is handled successfully."
-        },
-        {
-          "id": "create_corpu",
-          "title": "Create a new corpus. Required before ingesting.",
-          "description": "User triggers \"Create a new corpus. Required before ingesting.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls docs.corpus.create — create a new corpus. required before ingesting.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Create a new corpus. Required before ingesting.\" is handled successfully."
-        },
-        {
-          "id": "list_corpus",
-          "title": "List all corpora owned by the user.",
-          "description": "User triggers \"List all corpora owned by the user.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls docs.corpus.list — list all corpora owned by the user.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"List all corpora owned by the user.\" is handled successfully."
-        },
-        {
-          "id": "delete_corpu",
-          "title": "Delete a corpus and all its files/chunks.",
-          "description": "User triggers \"Delete a corpus and all its files/chunks.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls docs.corpus.delete — delete a corpus and all its files/chunks.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Delete a corpus and all its files/chunks.\" is handled successfully."
-        },
-        {
-          "id": "stats",
-          "title": "Get counts for one corpus or all corpora.",
-          "description": "User triggers \"Get counts for one corpus or all corpora.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls docs.stats — get counts for one corpus or all corpora.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Get counts for one corpus or all corpora.\" is handled successfully."
-        },
-        {
-          "id": "search",
-          "title": "PRIMARY RETRIEVAL TOOL. Semantic search over indexed chunks. Call before answering factual questions about the corpus.",
-          "description": "User triggers \"PRIMARY RETRIEVAL TOOL. Semantic search over indexed chunks. Call before answering factual questions about the corpus.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls dropbox.search — dropbox's built-in filename/content search.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"PRIMARY RETRIEVAL TOOL. Semantic search over indexed chunks. Call before answering factual questions about the corpus.\" is handled successfully."
-        },
-        {
-          "id": "get_file",
-          "title": "Get a file's full text and chunk breakdown.",
-          "description": "User triggers \"Get a file's full text and chunk breakdown.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls docs.file.get — get a file's full text and chunk breakdown.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Get a file's full text and chunk breakdown.\" is handled successfully."
-        },
-        {
-          "id": "file_ingest",
-          "title": "Ingest a single document by text or base64.",
-          "description": "User triggers \"Ingest a single document by text or base64.\" and the agent handles it end-to-end.",
-          "steps": [
-            "Agent calls docs.ingest.file — ingest a single document by text or base64.",
-            "Agent presents results to the user"
-          ],
-          "expected_outcome": "User request for \"Ingest a single document by text or base64.\" is handled successfully."
-        }
-      ],
       "role": {
-        "name": "Docs Research Assistant",
-        "persona": "You are a precise research assistant with access to the user's indexed document corpora. You answer by retrieving relevant chunks and synthesizing a short answer, always citing the file path (and heading when available). You never guess. If retrieval returns no strong matches, you say so plainly and offer to index more content or refine the query.",
+        "name": "Contract Analyst",
+        "persona": "You are a precise analyst for technical and legal documents. You receive a research dossier (retrieved chunks + question) from docs-librarian. Your job: (1) verify the dossier actually supports answering \u2014 if thin, use sys.askSkill(docs-librarian, '<specific request>') to request more retrieval; (2) reason across the material \u2014 resolve references, trace clause chains, detect amendments that override base text, flag carve-outs and exclusions; (3) produce a structured answer where every claim has a verbatim (file, heading) citation. Format money flows and comparisons as tables. Always surface ambiguities and genuine contract gaps \u2014 those are the most valuable findings. Never guess.",
         "goals": [
-          "Ground every factual claim in a retrieved chunk with a citation",
-          "Keep answers short and scannable; expand only when asked",
-          "Offer concrete next steps (index folder, refine query, try different corpus) when stuck"
+          "Verify material completeness before reasoning",
+          "Resolve references explicitly \u2014 show the chain",
+          "Structure money flows / comparisons as tables",
+          "Flag gaps, conflicts, circularities"
         ],
         "limitations": [
-          "Never answer factual questions without a retrieval step",
-          "Never invent file paths, headings, or quotes",
-          "Do not upload, delete, or modify Dropbox content without explicit user confirmation",
-          "Do not share citations or content across actors"
+          "Never guess at clause interpretation without supporting material",
+          "Never invent clause text, section numbers, or file paths",
+          "Never do ingestion or corpus management",
+          "Never skip citations"
         ],
         "communication_style": {
-          "tone": "neutral",
-          "verbosity": "terse"
+          "tone": "precise",
+          "verbosity": "structured"
         }
       },
-      "glossary": {},
-      "intents": {
-        "supported": [
-          {
-            "id": "setup",
-            "description": "Start the Dropbox OAuth flow for the current user. Returns a URL to visit for consent.",
-            "examples_generated": [
-              "Can you connect to my Dropbox account?",
-              "I want to link Dropbox so you can access my files",
-              "How do I authorize you to use my Dropbox?",
-              "Set up access to my cloud storage"
-            ],
-            "examples": [
-              "Can you connect to my Dropbox account?",
-              "I want to link Dropbox so you can access my files",
-              "How do I authorize you to use my Dropbox?",
-              "Set up access to my cloud storage"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "status",
-            "description": "Check if the current user has Dropbox connected.",
-            "examples_generated": [
-              "Is my Dropbox linked to this account?",
-              "Can you check if I'm connected to Dropbox?",
-              "Do I have Dropbox set up here?",
-              "What's my cloud storage connection status?"
-            ],
-            "examples": [
-              "Is my Dropbox linked to this account?",
-              "Can you check if I'm connected to Dropbox?",
-              "Do I have Dropbox set up here?",
-              "What's my cloud storage connection status?"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "search",
-            "description": "Dropbox's built-in filename/content search.",
-            "examples_generated": [
-              "Can you find files containing 'quarterly report' in my documents?",
-              "Search for anything with 'budget' in the filename",
-              "Look up documents that mention machine learning",
-              "Hunt down files about the marketing campaign we discussed"
-            ],
-            "entities": [
-              {
-                "name": "query",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "Can you find files containing 'quarterly report' in my documents?",
-              "Search for anything with 'budget' in the filename",
-              "Look up documents that mention machine learning",
-              "Hunt down files about the marketing campaign we discussed"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "index_folder",
-            "description": "Walk a Dropbox folder, download supported files, and ingest into a docs-index corpus. Resumable.",
-            "examples_generated": [
-              "Can you crawl through my project folder and add all the documents to the research corpus?",
-              "I need to scan the entire /reports directory and its subfolders to build my document index",
-              "Walk through my Dropbox files in the marketing folder and ingest everything into corpus-2024",
-              "Index all supported files from my thesis folder recursively into the main corpus"
-            ],
-            "entities": [
-              {
-                "name": "corpus_id",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "Can you crawl through my project folder and add all the documents to the research corpus?",
-              "I need to scan the entire /reports directory and its subfolders to build my document index",
-              "Walk through my Dropbox files in the marketing folder and ingest everything into corpus-2024",
-              "Index all supported files from my thesis folder recursively into the main corpus"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "upload",
-            "description": "Upload a file to Dropbox. Only after explicit user confirmation.",
-            "examples_generated": [
-              "Can you put this document in my Dropbox?",
-              "I'd like to save this file to my cloud storage",
-              "Upload this to Dropbox for me",
-              "Store this in my Dropbox account"
-            ],
-            "entities": [
-              {
-                "name": "path",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              },
-              {
-                "name": "content_base64",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "Can you put this document in my Dropbox?",
-              "I'd like to save this file to my cloud storage",
-              "Upload this to Dropbox for me",
-              "Store this in my Dropbox account"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "create_corpu",
-            "description": "Create a new corpus. Required before ingesting.",
-            "examples_generated": [
-              "I need to set up a new document collection called 'legal-contracts'",
-              "Can you make a corpus for my research papers?",
-              "Create a knowledge base named 'customer-feedback' with web scraping as the source",
-              "Set up a new repository called 'technical-docs' before I start adding files"
-            ],
-            "entities": [
-              {
-                "name": "name",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "I need to set up a new document collection called 'legal-contracts'",
-              "Can you make a corpus for my research papers?",
-              "Create a knowledge base named 'customer-feedback' with web scraping as the source",
-              "Set up a new repository called 'technical-docs' before I start adding files"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "list_corpus",
-            "description": "List all corpora owned by the user.",
-            "examples_generated": [
-              "What document collections do I have?",
-              "Show me all my corpora",
-              "Can you display my available datasets?",
-              "List my document repositories"
-            ],
-            "examples": [
-              "What document collections do I have?",
-              "Show me all my corpora",
-              "Can you display my available datasets?",
-              "List my document repositories"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "delete_corpu",
-            "description": "Delete a corpus and all its files/chunks.",
-            "examples_generated": [
-              "Remove corpus ABC123 completely",
-              "Can you wipe out the entire corpus along with everything inside it?",
-              "Delete corpus XYZ789 and all its contents",
-              "I want to get rid of corpus DEF456 - the whole thing"
-            ],
-            "entities": [
-              {
-                "name": "corpus_id",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "Remove corpus ABC123 completely",
-              "Can you wipe out the entire corpus along with everything inside it?",
-              "Delete corpus XYZ789 and all its contents",
-              "I want to get rid of corpus DEF456 - the whole thing"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "stats",
-            "description": "Get counts for one corpus or all corpora.",
-            "examples_generated": [
-              "How many documents are in the legal corpus?",
-              "Show me the totals for all collections",
-              "What's the document count for corpus-2024?",
-              "Can you pull up the numbers on our research database?"
-            ],
-            "examples": [
-              "How many documents are in the legal corpus?",
-              "Show me the totals for all collections",
-              "What's the document count for corpus-2024?",
-              "Can you pull up the numbers on our research database?"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "search",
-            "description": "PRIMARY RETRIEVAL TOOL. Semantic search over indexed chunks. Call before answering factual questions about the corpus.",
-            "examples_generated": [
-              "Can you find information about quarterly revenue trends?",
-              "Look up anything related to employee onboarding procedures",
-              "What does the documentation say about API rate limits?",
-              "Search for details on the new compliance requirements"
-            ],
-            "entities": [
-              {
-                "name": "query",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "Can you find information about quarterly revenue trends?",
-              "Look up anything related to employee onboarding procedures",
-              "What does the documentation say about API rate limits?",
-              "Search for details on the new compliance requirements"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "get_file",
-            "description": "Get a file's full text and chunk breakdown.",
-            "examples_generated": [
-              "Can you pull up the complete content for file 12345?",
-              "Show me what's in document abc789 broken down by sections",
-              "I need the full text of file xyz456 with its chunk structure",
-              "What does file def321 contain exactly?"
-            ],
-            "entities": [
-              {
-                "name": "file_id",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "Can you pull up the complete content for file 12345?",
-              "Show me what's in document abc789 broken down by sections",
-              "I need the full text of file xyz456 with its chunk structure",
-              "What does file def321 contain exactly?"
-            ],
-            "maps_to_workflow_resolved": true
-          },
-          {
-            "id": "file_ingest",
-            "description": "Ingest a single document by text or base64.",
-            "examples_generated": [
-              "Can you add this document to corpus 'legal-docs' with source ID 'contract-v2'?",
-              "Upload the base64 content I'm sending to the research database",
-              "Need to import a PDF file at /home/user/report.pdf into my collection",
-              "Process this text content and store it in corpus ID 12345"
-            ],
-            "entities": [
-              {
-                "name": "corpus_id",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              },
-              {
-                "name": "source_id",
-                "type": "string",
-                "required": false,
-                "extract_from": "message"
-              }
-            ],
-            "examples": [
-              "Can you add this document to corpus 'legal-docs' with source ID 'contract-v2'?",
-              "Upload the base64 content I'm sending to the research database",
-              "Need to import a PDF file at /home/user/report.pdf into my collection",
-              "Process this text content and store it in corpus ID 12345"
-            ],
-            "maps_to_workflow_resolved": true
-          }
-        ],
-        "thresholds": {
-          "accept": 0.85,
-          "clarify": 0.6,
-          "reject": 0.4
-        },
-        "out_of_domain": {
-          "action": "redirect",
-          "message": "This request is outside my capabilities.",
-          "suggest_domains": []
-        }
-      },
-      "engine": {
-        "rv2": {
-          "max_iterations": 10,
-          "iteration_timeout_ms": 45000,
-          "allow_parallel_tools": false
-        },
-        "hlr": {
-          "enabled": true,
-          "critic": {
-            "enabled": false,
-            "check_interval": 3,
-            "strictness": "medium"
-          },
-          "reflection": {
-            "enabled": false,
-            "depth": "shallow"
-          },
-          "replanning": {
-            "enabled": true,
-            "max_replans": 5
-          }
-        },
-        "autonomy": {
-          "level": "autonomous"
-        },
-        "finalization_gate": {
-          "enabled": true,
-          "max_retries": 2
-        },
-        "internal_error": {
-          "enabled": true,
-          "tool_not_found": {
-            "enter_resolution_after": 1,
-            "retryable": false
-          },
-          "resolution": {
-            "max_iterations": 1,
-            "allowed_capabilities": [
-              "read",
-              "search",
-              "document_output"
-            ]
-          },
-          "loop_detection": {
-            "enabled": true,
-            "identical_call_threshold": 2
-          }
-        },
-        "model": "claude-sonnet-4-20250514",
-        "temperature": 0.2
-      },
-      "toolbox_imports": [],
       "tools": [
         {
-          "id": "dropbox_setup",
-          "id_status": "permanent",
-          "name": "dropbox.setup",
-          "description": "Start the Dropbox OAuth flow for the current user. Returns a URL to visit for consent.",
-          "inputs": [],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "dropbox-mcp",
-            "mcp_tool": "dropbox.setup"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-dropbox-setup-auto",
-                "input": {},
-                "output": {
-                  "success": true,
-                  "data": {}
-                },
-                "description": "Auto-generated example for dropbox.setup"
-              }
-            ]
-          },
-          "security": {
-            "classification": "public"
-          }
-        },
-        {
-          "id": "dropbox_status",
-          "id_status": "permanent",
-          "name": "dropbox.status",
-          "description": "Check if the current user has Dropbox connected.",
-          "inputs": [],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "dropbox-mcp",
-            "mcp_tool": "dropbox.status"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-dropbox-status-auto",
-                "input": {},
-                "output": {
-                  "success": true,
-                  "data": {}
-                },
-                "description": "Auto-generated example for dropbox.status"
-              }
-            ]
-          },
-          "security": {
-            "classification": "public"
-          }
-        },
-        {
-          "id": "dropbox_search",
-          "id_status": "permanent",
-          "name": "dropbox.search",
-          "description": "Dropbox's built-in filename/content search.",
-          "inputs": [
-            {
-              "name": "query",
-              "type": "string",
-              "required": true,
-              "description": ""
-            },
-            {
-              "name": "path",
-              "type": "string",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "max_results",
-              "type": "number",
-              "required": false,
-              "description": ""
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "dropbox-mcp",
-            "mcp_tool": "dropbox.search"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-dropbox-search-auto",
-                "input": {
-                  "query": "search term"
-                },
-                "output": {
-                  "results": [
-                    {
-                      "id": 1,
-                      "name": "Example item"
-                    }
-                  ],
-                  "total_count": 1
-                },
-                "description": "Auto-generated example for dropbox.search"
-              }
-            ]
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "dropbox_index_folder",
-          "id_status": "permanent",
-          "name": "dropbox.index_folder",
-          "description": "Walk a Dropbox folder, download supported files, and ingest into a docs-index corpus. Resumable.",
-          "inputs": [
-            {
-              "name": "corpus_id",
-              "type": "string",
-              "required": true,
-              "description": ""
-            },
-            {
-              "name": "path",
-              "type": "string",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "recursive",
-              "type": "boolean",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "use_cursor",
-              "type": "boolean",
-              "required": false,
-              "description": ""
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "dropbox-mcp",
-            "mcp_tool": "dropbox.index_folder"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-dropbox-index_folder-auto",
-                "input": {
-                  "corpus_id": "id-001"
-                },
-                "output": {
-                  "success": true,
-                  "data": {}
-                },
-                "description": "Auto-generated example for dropbox.index_folder"
-              }
-            ]
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "dropbox_upload",
-          "id_status": "permanent",
-          "name": "dropbox.upload",
-          "description": "Upload a file to Dropbox. Only after explicit user confirmation.",
-          "inputs": [
-            {
-              "name": "path",
-              "type": "string",
-              "required": true,
-              "description": ""
-            },
-            {
-              "name": "content_base64",
-              "type": "string",
-              "required": true,
-              "description": ""
-            },
-            {
-              "name": "mode",
-              "type": "string",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "autorename",
-              "type": "boolean",
-              "required": false,
-              "description": ""
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "dropbox-mcp",
-            "mcp_tool": "dropbox.upload"
-          },
-          "policy": {
-            "allowed": "with_approval"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-dropbox-upload-auto",
-                "input": {
-                  "path": "example",
-                  "content_base64": "example"
-                },
-                "output": {
-                  "success": true,
-                  "data": {}
-                },
-                "description": "Auto-generated example for dropbox.upload"
-              }
-            ]
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_corpus_create",
-          "id_status": "permanent",
-          "name": "docs.corpus.create",
-          "description": "Create a new corpus. Required before ingesting.",
-          "inputs": [
-            {
-              "name": "name",
-              "type": "string",
-              "required": true,
-              "description": ""
-            },
-            {
-              "name": "source_type",
-              "type": "string",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "source_config",
-              "type": "object",
-              "required": false,
-              "description": ""
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.corpus.create"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-corpus-create-auto",
-                "input": {
-                  "name": "Example Name"
-                },
-                "output": {
-                  "id": 1,
-                  "status": "created",
-                  "message": "Created successfully."
-                },
-                "description": "Auto-generated example for docs.corpus.create"
-              }
-            ]
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_corpus_list",
-          "id_status": "permanent",
-          "name": "docs.corpus.list",
-          "description": "List all corpora owned by the user.",
-          "inputs": [],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.corpus.list"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-corpus-list-auto",
-                "input": {},
-                "output": {
-                  "results": [
-                    {
-                      "id": 1,
-                      "name": "Example item"
-                    }
-                  ],
-                  "total_count": 1
-                },
-                "description": "Auto-generated example for docs.corpus.list"
-              }
-            ]
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_corpus_delete",
-          "id_status": "permanent",
-          "name": "docs.corpus.delete",
-          "description": "Delete a corpus and all its files/chunks.",
-          "inputs": [
-            {
-              "name": "corpus_id",
-              "type": "string",
-              "required": true,
-              "description": ""
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.corpus.delete"
-          },
-          "policy": {
-            "allowed": "with_approval"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-corpus-delete-auto",
-                "input": {
-                  "corpus_id": "id-001"
-                },
-                "output": {
-                  "success": true,
-                  "message": "Operation completed successfully."
-                },
-                "description": "Auto-generated example for docs.corpus.delete"
-              }
-            ]
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_stats",
-          "id_status": "permanent",
-          "name": "docs.stats",
-          "description": "Get counts for one corpus or all corpora.",
-          "inputs": [
-            {
-              "name": "corpus_id",
-              "type": "string",
-              "required": false,
-              "description": ""
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.stats"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-docs-stats-auto",
-                "input": {},
-                "output": {
-                  "success": true,
-                  "data": {}
-                },
-                "description": "Auto-generated example for docs.stats"
-              }
-            ]
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_search",
+          "id": "docs_search_r",
           "id_status": "permanent",
           "name": "docs.search",
-          "description": "PRIMARY RETRIEVAL TOOL. Semantic search over indexed chunks. Call before answering factual questions about the corpus.",
+          "description": "Semantic search. Scope with corpus_id, file_id, heading_prefix.",
           "inputs": [
             {
               "name": "query",
               "type": "string",
-              "required": true,
-              "description": ""
+              "required": true
             },
             {
               "name": "corpus_id",
               "type": "string",
-              "required": false,
-              "description": ""
+              "required": false
+            },
+            {
+              "name": "file_id",
+              "type": "string",
+              "required": false
+            },
+            {
+              "name": "heading_prefix",
+              "type": "string",
+              "required": false
             },
             {
               "name": "top_k",
               "type": "number",
-              "required": false,
-              "description": ""
+              "required": false
             }
           ],
           "output": {
@@ -1035,43 +151,116 @@
           "policy": {
             "allowed": "always"
           },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-docs-search-auto",
-                "input": {
-                  "query": "search term"
-                },
-                "output": {
-                  "results": [
-                    {
-                      "id": 1,
-                      "name": "Example item"
-                    }
-                  ],
-                  "total_count": 1
-                },
-                "description": "Auto-generated example for docs.search"
-              }
-            ]
+          "security": {
+            "classification": "private"
+          }
+        },
+        {
+          "id": "docs_neighbor_r",
+          "id_status": "permanent",
+          "name": "docs.neighbor_chunks",
+          "description": "Context expansion around a chunk.",
+          "inputs": [
+            {
+              "name": "chunk_id",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "before",
+              "type": "number",
+              "required": false
+            },
+            {
+              "name": "after",
+              "type": "number",
+              "required": false
+            }
+          ],
+          "output": {
+            "type": "object"
+          },
+          "source": {
+            "type": "mcp_bridge",
+            "connection_id": "docs-index-mcp",
+            "mcp_tool": "docs.neighbor_chunks"
+          },
+          "policy": {
+            "allowed": "always"
           },
           "security": {
             "classification": "private"
           }
         },
         {
-          "id": "docs_file_get",
+          "id": "docs_list_sections_r",
           "id_status": "permanent",
-          "name": "docs.file.get",
-          "description": "Get a file's full text and chunk breakdown.",
+          "name": "docs.list_sections",
+          "description": "TOC of a file.",
           "inputs": [
             {
               "name": "file_id",
               "type": "string",
-              "required": true,
-              "description": ""
+              "required": true
+            }
+          ],
+          "output": {
+            "type": "object"
+          },
+          "source": {
+            "type": "mcp_bridge",
+            "connection_id": "docs-index-mcp",
+            "mcp_tool": "docs.list_sections"
+          },
+          "policy": {
+            "allowed": "always"
+          },
+          "security": {
+            "classification": "private"
+          }
+        },
+        {
+          "id": "docs_list_files_r",
+          "id_status": "permanent",
+          "name": "docs.list_files",
+          "description": "List files in a corpus.",
+          "inputs": [
+            {
+              "name": "corpus_id",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "status",
+              "type": "string",
+              "required": false
+            }
+          ],
+          "output": {
+            "type": "object"
+          },
+          "source": {
+            "type": "mcp_bridge",
+            "connection_id": "docs-index-mcp",
+            "mcp_tool": "docs.list_files"
+          },
+          "policy": {
+            "allowed": "always"
+          },
+          "security": {
+            "classification": "private"
+          }
+        },
+        {
+          "id": "docs_file_get_r",
+          "id_status": "permanent",
+          "name": "docs.file.get",
+          "description": "Full file text + chunks.",
+          "inputs": [
+            {
+              "name": "file_id",
+              "type": "string",
+              "required": true
             }
           ],
           "output": {
@@ -1085,68 +274,20 @@
           "policy": {
             "allowed": "always"
           },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-file-get-auto",
-                "input": {
-                  "file_id": "id-001"
-                },
-                "output": {
-                  "success": true,
-                  "data": {}
-                },
-                "description": "Auto-generated example for docs.file.get"
-              }
-            ]
-          },
           "security": {
             "classification": "private"
           }
         },
         {
-          "id": "docs_ingest_file",
+          "id": "docs_stats_r",
           "id_status": "permanent",
-          "name": "docs.ingest.file",
-          "description": "Ingest a single document by text or base64.",
+          "name": "docs.stats",
+          "description": "Corpus stats.",
           "inputs": [
             {
               "name": "corpus_id",
               "type": "string",
-              "required": true,
-              "description": ""
-            },
-            {
-              "name": "source_id",
-              "type": "string",
-              "required": true,
-              "description": ""
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "content_base64",
-              "type": "string",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "path",
-              "type": "string",
-              "required": false,
-              "description": ""
-            },
-            {
-              "name": "mime",
-              "type": "string",
-              "required": false,
-              "description": ""
+              "required": false
             }
           ],
           "output": {
@@ -1155,240 +296,57 @@
           "source": {
             "type": "mcp_bridge",
             "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.ingest.file"
+            "mcp_tool": "docs.stats"
           },
           "policy": {
             "allowed": "always"
-          },
-          "mock": {
-            "enabled": true,
-            "mode": "examples",
-            "examples": [
-              {
-                "id": "tool-ingest-file-auto",
-                "input": {
-                  "corpus_id": "id-001",
-                  "source_id": "id-001"
-                },
-                "output": {
-                  "success": true,
-                  "data": {}
-                },
-                "description": "Auto-generated example for docs.ingest.file"
-              }
-            ]
           },
           "security": {
             "classification": "private"
           }
         }
       ],
-      "meta_tools": [],
-      "triggers": [],
-      "connectors": [
-        "dropbox-mcp",
-        "docs-index-mcp"
-      ],
       "policy": {
         "guardrails": {
-          "never": [],
-          "always": []
-        },
-        "approvals": [],
-        "workflows": [
-          {
-            "id": "setup_flow",
-            "name": "Start the Dropbox OAuth flow for the current user. Returns a URL to visit for consent.",
-            "description": "Auto-generated workflow for setup",
-            "trigger": "setup",
-            "steps": [
-              "dropbox.setup"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "status_flow",
-            "name": "Check if the current user has Dropbox connected.",
-            "description": "Auto-generated workflow for status",
-            "trigger": "status",
-            "steps": [
-              "dropbox.status"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "search_flow",
-            "name": "Dropbox's built-in filename/content search.",
-            "description": "Auto-generated workflow for search",
-            "trigger": "search",
-            "steps": [
-              "dropbox.search"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "index_folder_flow",
-            "name": "Walk a Dropbox folder, download supported files, and ingest into a docs-index corpus. Resumable.",
-            "description": "Auto-generated workflow for index_folder",
-            "trigger": "index_folder",
-            "steps": [
-              "dropbox.index_folder"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "upload_flow",
-            "name": "Upload a file to Dropbox. Only after explicit user confirmation.",
-            "description": "Auto-generated workflow for upload",
-            "trigger": "upload",
-            "steps": [
-              "dropbox.upload"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "create_corpu_flow",
-            "name": "Create a new corpus. Required before ingesting.",
-            "description": "Auto-generated workflow for create_corpu",
-            "trigger": "create_corpu",
-            "steps": [
-              "docs.corpus.create"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "list_corpus_flow",
-            "name": "List all corpora owned by the user.",
-            "description": "Auto-generated workflow for list_corpus",
-            "trigger": "list_corpus",
-            "steps": [
-              "docs.corpus.list"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "delete_corpu_flow",
-            "name": "Delete a corpus and all its files/chunks.",
-            "description": "Auto-generated workflow for delete_corpu",
-            "trigger": "delete_corpu",
-            "steps": [
-              "docs.corpus.delete"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "stats_flow",
-            "name": "Get counts for one corpus or all corpora.",
-            "description": "Auto-generated workflow for stats",
-            "trigger": "stats",
-            "steps": [
-              "docs.stats"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "search_flow",
-            "name": "PRIMARY RETRIEVAL TOOL. Semantic search over indexed chunks. Call before answering factual questions about the corpus.",
-            "description": "Auto-generated workflow for search",
-            "trigger": "search",
-            "steps": [
-              "dropbox.search"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "get_file_flow",
-            "name": "Get a file's full text and chunk breakdown.",
-            "description": "Auto-generated workflow for get_file",
-            "trigger": "get_file",
-            "steps": [
-              "docs.file.get"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          },
-          {
-            "id": "file_ingest_flow",
-            "name": "Ingest a single document by text or base64.",
-            "description": "Auto-generated workflow for file_ingest",
-            "trigger": "file_ingest",
-            "steps": [
-              "docs.ingest.file"
-            ],
-            "required": false,
-            "on_deviation": "warn",
-            "steps_resolved": [
-              true
-            ]
-          }
-        ],
-        "escalation": {
-          "enabled": false,
-          "conditions": [],
-          "target": ""
+          "never": [
+            "Invent clause text, section numbers, or file paths",
+            "Answer without a chunk-backed citation for every factual claim",
+            "Synthesize across documents without direct supporting material",
+            "Paper over a gap or ambiguity",
+            "Do ingestion, deletion, or corpus management"
+          ],
+          "always": [
+            "Verify dossier completeness before reasoning; request more via sys.askSkill(docs-librarian) if thin",
+            "Include a verbatim (file, heading) citation for every factual claim",
+            "Resolve references explicitly",
+            "Structure money flows / comparisons as tables",
+            "Call out detected gaps, conflicts, circularities"
+          ]
         }
       },
-      "channels": [],
-      "id": "docs-retrieval",
-      "name": "Docs Retrieval",
-      "ui_capable": false,
-      "grant_mappings": [],
-      "access_policy": {
-        "rules": [
-          {
-            "tools": [
-              "*"
-            ],
-            "effect": "allow"
+      "engine": {
+        "model": "claude-opus-4-5",
+        "temperature": 0.1,
+        "rv2": {
+          "max_iterations": 25,
+          "iteration_timeout_ms": 60000,
+          "allow_parallel_tools": false
+        },
+        "hlr": {
+          "enabled": true,
+          "critic": {
+            "enabled": true,
+            "strictness": "strict"
+          },
+          "reflection": {
+            "enabled": true,
+            "depth": "deep"
           }
-        ]
-      },
-      "response_filters": [],
-      "created_at": "2026-04-19T21:37:43.589Z",
-      "updated_at": "2026-04-19T22:01:49.482Z"
+        },
+        "autonomy": {
+          "level": "autonomous"
+        }
+      }
     },
     {
       "id": "docs-librarian",
@@ -1401,7 +359,7 @@
         "docs-index-mcp"
       ],
       "problem": {
-        "statement": "Users ask questions about indexed document corpora — contracts, handbooks, specs. Questions range from simple single-fact lookups to multi-hop analytical reasoning spanning several documents. The librarian decomposes questions, runs the right retrieval strategy, and routes to the analyst when the question requires deep reasoning.",
+        "statement": "Users ask questions about indexed document corpora \u2014 contracts, handbooks, specs. Questions range from simple single-fact lookups to multi-hop analytical reasoning spanning several documents. The librarian decomposes questions, runs the right retrieval strategy, and routes to the analyst when the question requires deep reasoning.",
         "goals": [
           "Resolve simple factoid questions inline with exact citations",
           "For multi-hop or cross-document questions: decompose, gather retrieval material, hand off to contract-analyst",
@@ -1411,7 +369,7 @@
       },
       "role": {
         "name": "Docs Librarian",
-        "persona": "You are a precise research librarian for technical and legal documents. Two modes: (1) SIMPLE requests — corpus management, Dropbox ingestion, or single-fact lookups with one clear answer in one searchable spot — handle yourself with dropbox.* and docs.* tools and reply directly. (2) COMPLEX requests — multi-part questions, cross-document comparison, chain-of-liability, reference resolution — decompose into 2-5 sub-queries, run docs.search / docs.neighbor_chunks / docs.list_sections to assemble a research dossier, then hand off to contract-analyst with the dossier. You do retrieval strategy, not deep interpretation. When in doubt whether a question is complex, lean toward handoff. Never invent citations.",
+        "persona": "You are a precise research librarian for technical and legal documents. Two modes: (1) SIMPLE requests \u2014 corpus management, Dropbox ingestion, or single-fact lookups with one clear answer in one searchable spot \u2014 handle yourself with dropbox.* and docs.* tools and reply directly. (2) COMPLEX requests \u2014 multi-part questions, cross-document comparison, chain-of-liability, reference resolution \u2014 decompose into 2-5 sub-queries, run docs.search / docs.neighbor_chunks / docs.list_sections to assemble a research dossier, then hand off to contract-analyst with the dossier. You do retrieval strategy, not deep interpretation. When in doubt whether a question is complex, lean toward handoff. Never invent citations.",
         "goals": [
           "Decompose multi-part questions before searching",
           "Use heading_prefix and file_id filters to scope retrieval",
@@ -1928,7 +886,7 @@
           "never": [
             "Answer factual content questions without calling docs.search first",
             "Invent file paths, chunk contents, or heading paths",
-            "Synthesize a legal/technical interpretation — hand off to contract-analyst",
+            "Synthesize a legal/technical interpretation \u2014 hand off to contract-analyst",
             "Upload, delete, or modify content without explicit user confirmation"
           ],
           "always": [
@@ -1963,305 +921,24 @@
           "level": "autonomous"
         }
       }
-    },
-    {
-      "id": "contract-analyst",
-      "name": "Contract Analyst",
-      "description": "Deep reasoning specialist for technical/legal documents. Takes research dossiers from the librarian, does multi-hop reasoning, produces cited answers. Flags gaps.",
-      "version": "0.3.0",
-      "phase": "TOOL_DEFINITION",
-      "connectors": [
-        "docs-index-mcp"
-      ],
-      "problem": {
-        "statement": "Multi-hop reasoning over technical/legal document corpora. Chain-of-liability analysis, cross-document comparison, reference resolution, structured synthesis. Receives a research dossier from the librarian, produces a grounded, cited answer. If the dossier is thin, requests more retrieval from the librarian rather than guessing.",
-        "goals": [
-          "Ground every factual claim in a verbatim citation",
-          "Trace multi-hop references (clause → defined term → amendment)",
-          "Detect and flag gaps, conflicts, ambiguities",
-          "Produce scannable, structured answers"
-        ]
-      },
-      "role": {
-        "name": "Contract Analyst",
-        "persona": "You are a precise analyst for technical and legal documents. You receive a research dossier (retrieved chunks + question) from docs-librarian. Your job: (1) verify the dossier actually supports answering — if thin, use sys.askSkill(docs-librarian, '<specific request>') to request more retrieval; (2) reason across the material — resolve references, trace clause chains, detect amendments that override base text, flag carve-outs and exclusions; (3) produce a structured answer where every claim has a verbatim (file, heading) citation. Format money flows and comparisons as tables. Always surface ambiguities and genuine contract gaps — those are the most valuable findings. Never guess.",
-        "goals": [
-          "Verify material completeness before reasoning",
-          "Resolve references explicitly — show the chain",
-          "Structure money flows / comparisons as tables",
-          "Flag gaps, conflicts, circularities"
-        ],
-        "limitations": [
-          "Never guess at clause interpretation without supporting material",
-          "Never invent clause text, section numbers, or file paths",
-          "Never do ingestion or corpus management",
-          "Never skip citations"
-        ],
-        "communication_style": {
-          "tone": "precise",
-          "verbosity": "structured"
-        }
-      },
-      "tools": [
-        {
-          "id": "docs_search_r",
-          "id_status": "permanent",
-          "name": "docs.search",
-          "description": "Semantic search. Scope with corpus_id, file_id, heading_prefix.",
-          "inputs": [
-            {
-              "name": "query",
-              "type": "string",
-              "required": true
-            },
-            {
-              "name": "corpus_id",
-              "type": "string",
-              "required": false
-            },
-            {
-              "name": "file_id",
-              "type": "string",
-              "required": false
-            },
-            {
-              "name": "heading_prefix",
-              "type": "string",
-              "required": false
-            },
-            {
-              "name": "top_k",
-              "type": "number",
-              "required": false
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.search"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_neighbor_r",
-          "id_status": "permanent",
-          "name": "docs.neighbor_chunks",
-          "description": "Context expansion around a chunk.",
-          "inputs": [
-            {
-              "name": "chunk_id",
-              "type": "string",
-              "required": true
-            },
-            {
-              "name": "before",
-              "type": "number",
-              "required": false
-            },
-            {
-              "name": "after",
-              "type": "number",
-              "required": false
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.neighbor_chunks"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_list_sections_r",
-          "id_status": "permanent",
-          "name": "docs.list_sections",
-          "description": "TOC of a file.",
-          "inputs": [
-            {
-              "name": "file_id",
-              "type": "string",
-              "required": true
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.list_sections"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_list_files_r",
-          "id_status": "permanent",
-          "name": "docs.list_files",
-          "description": "List files in a corpus.",
-          "inputs": [
-            {
-              "name": "corpus_id",
-              "type": "string",
-              "required": true
-            },
-            {
-              "name": "status",
-              "type": "string",
-              "required": false
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.list_files"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_file_get_r",
-          "id_status": "permanent",
-          "name": "docs.file.get",
-          "description": "Full file text + chunks.",
-          "inputs": [
-            {
-              "name": "file_id",
-              "type": "string",
-              "required": true
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.file.get"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "security": {
-            "classification": "private"
-          }
-        },
-        {
-          "id": "docs_stats_r",
-          "id_status": "permanent",
-          "name": "docs.stats",
-          "description": "Corpus stats.",
-          "inputs": [
-            {
-              "name": "corpus_id",
-              "type": "string",
-              "required": false
-            }
-          ],
-          "output": {
-            "type": "object"
-          },
-          "source": {
-            "type": "mcp_bridge",
-            "connection_id": "docs-index-mcp",
-            "mcp_tool": "docs.stats"
-          },
-          "policy": {
-            "allowed": "always"
-          },
-          "security": {
-            "classification": "private"
-          }
-        }
-      ],
-      "policy": {
-        "guardrails": {
-          "never": [
-            "Invent clause text, section numbers, or file paths",
-            "Answer without a chunk-backed citation for every factual claim",
-            "Synthesize across documents without direct supporting material",
-            "Paper over a gap or ambiguity",
-            "Do ingestion, deletion, or corpus management"
-          ],
-          "always": [
-            "Verify dossier completeness before reasoning; request more via sys.askSkill(docs-librarian) if thin",
-            "Include a verbatim (file, heading) citation for every factual claim",
-            "Resolve references explicitly",
-            "Structure money flows / comparisons as tables",
-            "Call out detected gaps, conflicts, circularities"
-          ]
-        }
-      },
-      "engine": {
-        "model": "claude-opus-4-5",
-        "temperature": 0.1,
-        "rv2": {
-          "max_iterations": 25,
-          "iteration_timeout_ms": 60000,
-          "allow_parallel_tools": false
-        },
-        "hlr": {
-          "enabled": true,
-          "critic": {
-            "enabled": true,
-            "strictness": "strict"
-          },
-          "reflection": {
-            "enabled": true,
-            "depth": "deep"
-          }
-        },
-        "autonomy": {
-          "level": "autonomous"
-        }
-      }
     }
   ],
   "connectors": [
     {
-      "id": "docs-index-mcp",
-      "required": true,
-      "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search)",
-      "used_by": [
-        "docs-retrieval"
-      ],
-      "_platform": true
+      "id": "dropbox-mcp",
+      "name": "Dropbox MCP",
+      "transport": "stdio",
+      "env": {
+        "DROPBOX_SHARED_MODE": "1"
+      }
     },
     {
-      "id": "dropbox-mcp",
-      "description": "",
-      "required": true,
-      "used_by": [],
-      "_platform": true
+      "id": "docs-workbench-mcp",
+      "name": "Docs Workbench MCP",
+      "transport": "stdio",
+      "ui_capable": true
     }
   ],
-  "exported_at": "2026-04-19T22:02:00.787Z",
-  "export_version": "1.0.0"
+  "exported_at": "2026-04-20T01:48:45",
+  "export_version": "1.0"
 }
