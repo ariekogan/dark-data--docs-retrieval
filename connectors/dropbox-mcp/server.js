@@ -12,9 +12,14 @@ const APP_KEY = process.env.DROPBOX_APP_KEY || "";
 const APP_SECRET = process.env.DROPBOX_APP_SECRET || "";
 const REDIRECT_URI = process.env.DROPBOX_OAUTH_REDIRECT_URI || "";
 const TENANT = process.env.ADAS_TENANT || process.env.TENANT || "";
+const SHARED_MODE = process.env.DROPBOX_SHARED_MODE === "1";
+const SHARED_ACTOR_ID = "_tenant_shared";
 const SYSTEM_ACTOR_IDS = new Set(["trigger-runner", "default", "_system_service", "legacy_single_user"]);
 
 function getActor(args) {
+  // Shared-mode MVP: a single Dropbox connection serves the entire tenant.
+  // Every tool resolves to a fixed actor id; every user hits the same tokens.
+  if (SHARED_MODE) return SHARED_ACTOR_ID;
   const id = process.env.ADAS_ACTOR_ID || args?._adas_actor;
   if (!id || SYSTEM_ACTOR_IDS.has(id)) throw new Error(`Dropbox tools require a real authenticated actor — got "${id || "none"}".`);
   return id;
