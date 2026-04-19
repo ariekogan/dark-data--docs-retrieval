@@ -953,7 +953,10 @@
       "name": "Dropbox MCP",
       "transport": "stdio",
       "env": {
-        "DROPBOX_SHARED_MODE": "1"
+        "DROPBOX_SHARED_MODE": "1",
+        "DROPBOX_APP_KEY": "inqzz7agquyth38",
+        "DROPBOX_APP_SECRET": "s3sfjxghf6vwlst",
+        "DROPBOX_OAUTH_REDIRECT_URI": "https://api.ateam-ai.com/api/integrations/dropbox/callback"
       }
     },
     {
@@ -963,6 +966,6 @@
       "ui_capable": true
     }
   ],
-  "exported_at": "2026-04-20T02:09:12",
+  "exported_at": "2026-04-20T02:34:24",
   "export_version": "1.0"
 }
