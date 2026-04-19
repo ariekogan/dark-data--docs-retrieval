@@ -21,15 +21,18 @@ import { z } from "zod";
 
 const CONNECTOR_ID = "docs-workbench-mcp";
 
+// Per fleet-mcp reference pattern (GET /spec/examples + public solutions):
+// ui.getPlugin returns the manifest with a SHORT id. A-Team adds the
+// mcp:<connector-id>: prefix externally — the solution.json uses the FQN.
 const WORKBENCH_MANIFEST = {
-  id: `mcp:${CONNECTOR_ID}:workbench`,
+  id: "workbench",
   name: "Docs Workbench",
   version: "0.1.0",
-  type: "ui",
   description: "Dropbox setup wizard + corpus manager for the docs-retrieval solution.",
   render: {
     mode: "adaptive",
     iframeUrl: "/ui/workbench/index.html",
+    reactNative: { component: "workbench" },
   },
   capabilities: {},
   channels: ["command"],
@@ -47,21 +50,28 @@ function err(m) {
 
 const server = new McpServer({ name: "adas-docs-workbench-mcp", version: "0.1.0" });
 
-// Spec: { plugins: [...] } with FULL manifests.
+// Per fleet-mcp reference: listPlugins returns a minimal summary per plugin.
 server.tool(
   "ui.listPlugins",
-  "List UI plugins hosted by this connector. Returns full manifests.",
+  "List UI plugins hosted by this connector.",
   {},
-  async () => ok({ plugins: PLUGINS })
+  async () => ok({
+    plugins: PLUGINS.map(({ id, name, version, description }) => ({ id, name, version, description })),
+  })
 );
 
-// Spec: return manifest DIRECTLY, not wrapped in { plugin: ... }.
+// Per fleet-mcp reference: getPlugin returns the FULL manifest DIRECTLY
+// (not wrapped), matches on short id OR the FQN (mcp:<connector>:<short-id>).
 server.tool(
   "ui.getPlugin",
   "Return the full manifest for a specific plugin by id.",
   { plugin_id: z.string() },
   async ({ plugin_id }) => {
-    const m = PLUGINS.find((x) => x.id === plugin_id);
+    // Accept both short id and fully-qualified id.
+    const shortId = plugin_id.startsWith(`mcp:${CONNECTOR_ID}:`)
+      ? plugin_id.slice(`mcp:${CONNECTOR_ID}:`.length)
+      : plugin_id;
+    const m = PLUGINS.find((x) => x.id === shortId || x.id === plugin_id);
     if (!m) return err(`Plugin not found: ${plugin_id}`);
     return ok(m);
   }

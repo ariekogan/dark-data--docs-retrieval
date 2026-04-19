@@ -1,7 +1,7 @@
 {
   "id": "docs-retrieval",
   "name": "Docs Retrieval",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Two-skill orchestrator solution for technical/contract document retrieval, with a Dropbox setup wizard + corpus manager UI.",
   "orchestrator_skill": "docs-librarian",
   "identity": {
@@ -16,7 +16,6 @@
       "name": "Docs Librarian",
       "role": "orchestrator",
       "description": "Entry point. Decomposes questions, runs targeted retrieval, hands off to contract-analyst for deep reasoning.",
-      "entry_channels": ["web", "telegram", "email"],
       "connectors": ["dropbox-mcp", "docs-index-mcp"]
     },
     {
@@ -35,11 +34,9 @@
     "web":      { "default_skill": "docs-librarian", "description": "Web/chat messages start at the librarian" }
   },
   "platform_connectors": [
-    {
-      "id": "docs-index-mcp",
-      "required": true,
-      "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search, heading/section navigation)"
-    }
+    { "id": "docs-index-mcp", "required": true },
+    { "id": "dropbox-mcp", "required": true },
+    { "id": "docs-workbench-mcp", "required": true }
   ],
   "ui_plugins": [
     {
@@ -47,10 +44,10 @@
       "name": "Docs Workbench",
       "version": "0.1.0",
       "type": "ui",
-      "description": "Dropbox setup wizard + corpus manager. First-run entry point.",
       "render": {
         "mode": "adaptive",
-        "iframeUrl": "/ui/workbench/index.html"
+        "iframeUrl": "/ui/workbench/index.html",
+        "reactNative": { "component": "workbench" }
       },
       "capabilities": {},
       "channels": ["command"],
