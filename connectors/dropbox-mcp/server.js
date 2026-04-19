@@ -24,7 +24,10 @@ import * as dropbox from "./src/dropboxClient.js";
 import { DropboxAuthRequired } from "./src/dropboxClient.js";
 import { indexFolder } from "./src/indexFolder.js";
 
-const SHARED_MODE = process.env.DROPBOX_SHARED_MODE === "1";
+// MVP: Dropbox is an ORG-WIDE connection by default. All users in the tenant
+// share one set of OAuth tokens (keyed by _tenant_shared). Set
+// DROPBOX_SHARED_MODE=0 explicitly to switch to per-user tokens.
+const SHARED_MODE = process.env.DROPBOX_SHARED_MODE !== "0";
 const SHARED_ACTOR_ID = "_tenant_shared";
 const SYSTEM_ACTOR_IDS = new Set(["trigger-runner", "default", "_system_service", "legacy_single_user"]);
 
