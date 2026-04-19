@@ -39,26 +39,19 @@ const ENV_REDIRECT_URI = process.env.DROPBOX_OAUTH_REDIRECT_URI || "";
 // Platform default — used when neither SQLite nor env supply a redirect URI.
 const DEFAULT_REDIRECT_URI = "https://api.ateam-ai.com/api/integrations/dropbox/callback";
 
-/** Get the effective app config — SQLite first, env fallback. redirect_uri always populated. */
+/** Get the effective app config — MERGE SQLite + env (SQLite wins, env fills gaps). */
 function effectiveAppConfig() {
-  const dbCfg = storage.getAppConfigInternal();
-  if (dbCfg) {
-    return {
-      app_key: dbCfg.app_key,
-      app_secret: dbCfg.app_secret,
-      redirect_uri: dbCfg.redirect_uri || DEFAULT_REDIRECT_URI,
-      source: "sqlite",
-    };
-  }
-  if (ENV_APP_KEY && ENV_APP_SECRET) {
-    return {
-      app_key: ENV_APP_KEY,
-      app_secret: ENV_APP_SECRET,
-      redirect_uri: ENV_REDIRECT_URI || DEFAULT_REDIRECT_URI,
-      source: "env",
-    };
-  }
-  return null;
+  const dbCfg = storage.getAppConfigInternal() || {};
+  const app_key    = dbCfg.app_key    || ENV_APP_KEY    || "";
+  const app_secret = dbCfg.app_secret || ENV_APP_SECRET || "";
+  const redirect_uri = dbCfg.redirect_uri || ENV_REDIRECT_URI || DEFAULT_REDIRECT_URI;
+  if (!app_key || !app_secret) return null;
+  // Source tag — "sqlite" if the key came from SQLite, "env" if it only came from env, "mixed" if split.
+  let source = "none";
+  if (dbCfg.app_key && dbCfg.app_secret) source = "sqlite";
+  else if (ENV_APP_KEY && ENV_APP_SECRET && !dbCfg.app_key && !dbCfg.app_secret) source = "env";
+  else source = "mixed";
+  return { app_key, app_secret, redirect_uri, source };
 }
 
 function getActor(args) {
@@ -141,6 +134,27 @@ server.tool(
     storage.clearAppConfig();
     return ok({ configured: false });
   }
+);
+
+server.tool(
+  "dropbox.app.debug",
+  "Diagnostic: inspect the SQLite app_config row (secret masked) and env state.",
+  {},
+  async () => ok({
+    sqlite: storage.debugRawRow(),
+    env: {
+      has_app_key: Boolean(ENV_APP_KEY),
+      has_app_secret: Boolean(ENV_APP_SECRET),
+      has_redirect_uri: Boolean(ENV_REDIRECT_URI),
+      shared_mode: SHARED_MODE,
+    },
+    effective: (() => {
+      const c = effectiveAppConfig();
+      return c ? { app_key_preview: c.app_key.slice(0,4)+"…"+c.app_key.slice(-3), has_secret: Boolean(c.app_secret), redirect_uri: c.redirect_uri, source: c.source } : null;
+    })(),
+    data_dir: process.env.DATA_DIR || "(unset)",
+    version: "0.2.1",
+  })
 );
 
 // ───────── User flow ─────────

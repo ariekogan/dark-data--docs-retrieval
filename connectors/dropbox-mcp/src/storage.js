@@ -65,14 +65,32 @@ export function getAppConfigPublic() {
   };
 }
 
-/** Internal: returns the FULL config including secret. Only for OAuth flows. */
+/** Internal: returns the FULL config including secret. Only for OAuth flows.
+ *  Relaxed: returns whatever is in the row (possibly partial) — the caller
+ *  merges with env to fill missing fields. */
 export function getAppConfigInternal() {
   const row = db.prepare("SELECT * FROM app_config WHERE key = 'default'").get();
-  if (!row || !row.app_key || !row.app_secret) return null;
+  if (!row) return null;
   return {
-    app_key: row.app_key,
-    app_secret: row.app_secret,
+    app_key: row.app_key || "",
+    app_secret: row.app_secret || "",
     redirect_uri: row.redirect_uri || "",
+  };
+}
+
+/** DEBUG: raw row inspection (secret masked). For diagnostics only. */
+export function debugRawRow() {
+  const row = db.prepare("SELECT * FROM app_config WHERE key = 'default'").get();
+  if (!row) return { exists: false };
+  return {
+    exists: true,
+    app_key_len: (row.app_key || "").length,
+    app_key_preview: row.app_key ? row.app_key.slice(0, 4) + "…" + row.app_key.slice(-3) : "",
+    app_secret_len: (row.app_secret || "").length,
+    has_app_secret: Boolean(row.app_secret),
+    redirect_uri: row.redirect_uri || "",
+    redirect_uri_len: (row.redirect_uri || "").length,
+    updated_at: row.updated_at,
   };
 }
 
