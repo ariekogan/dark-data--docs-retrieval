@@ -79,7 +79,18 @@
         "commands": []
       }
     ],
-    "security_contracts": []
+    "security_contracts": [],
+    "connectors": [
+      {
+        "id": "dropbox-mcp",
+        "env": {
+          "DROPBOX_SHARED_MODE": "1",
+          "DROPBOX_APP_KEY": "inqzz7agquyth38",
+          "DROPBOX_APP_SECRET": "s3sfjxghf6vwlst",
+          "DROPBOX_OAUTH_REDIRECT_URI": "https://api.ateam-ai.com/api/integrations/dropbox/callback"
+        }
+      }
+    ]
   },
   "skills": [
     {
@@ -95,17 +106,17 @@
         "statement": "Multi-hop reasoning over technical/legal document corpora. Chain-of-liability analysis, cross-document comparison, reference resolution, structured synthesis. Receives a research dossier from the librarian, produces a grounded, cited answer. If the dossier is thin, requests more retrieval from the librarian rather than guessing.",
         "goals": [
           "Ground every factual claim in a verbatim citation",
-          "Trace multi-hop references (clause \u2192 defined term \u2192 amendment)",
+          "Trace multi-hop references (clause → defined term → amendment)",
           "Detect and flag gaps, conflicts, ambiguities",
           "Produce scannable, structured answers"
         ]
       },
       "role": {
         "name": "Contract Analyst",
-        "persona": "You are a precise analyst for technical and legal documents. You receive a research dossier (retrieved chunks + question) from docs-librarian. Your job: (1) verify the dossier actually supports answering \u2014 if thin, use sys.askSkill(docs-librarian, '<specific request>') to request more retrieval; (2) reason across the material \u2014 resolve references, trace clause chains, detect amendments that override base text, flag carve-outs and exclusions; (3) produce a structured answer where every claim has a verbatim (file, heading) citation. Format money flows and comparisons as tables. Always surface ambiguities and genuine contract gaps \u2014 those are the most valuable findings. Never guess.",
+        "persona": "You are a precise analyst for technical and legal documents. You receive a research dossier (retrieved chunks + question) from docs-librarian. Your job: (1) verify the dossier actually supports answering — if thin, use sys.askSkill(docs-librarian, '<specific request>') to request more retrieval; (2) reason across the material — resolve references, trace clause chains, detect amendments that override base text, flag carve-outs and exclusions; (3) produce a structured answer where every claim has a verbatim (file, heading) citation. Format money flows and comparisons as tables. Always surface ambiguities and genuine contract gaps — those are the most valuable findings. Never guess.",
         "goals": [
           "Verify material completeness before reasoning",
-          "Resolve references explicitly \u2014 show the chain",
+          "Resolve references explicitly — show the chain",
           "Structure money flows / comparisons as tables",
           "Flag gaps, conflicts, circularities"
         ],
@@ -372,7 +383,7 @@
         "docs-index-mcp"
       ],
       "problem": {
-        "statement": "Users ask questions about indexed document corpora \u2014 contracts, handbooks, specs. Questions range from simple single-fact lookups to multi-hop analytical reasoning spanning several documents. The librarian decomposes questions, runs the right retrieval strategy, and routes to the analyst when the question requires deep reasoning.",
+        "statement": "Users ask questions about indexed document corpora — contracts, handbooks, specs. Questions range from simple single-fact lookups to multi-hop analytical reasoning spanning several documents. The librarian decomposes questions, runs the right retrieval strategy, and routes to the analyst when the question requires deep reasoning.",
         "goals": [
           "Resolve simple factoid questions inline with exact citations",
           "For multi-hop or cross-document questions: decompose, gather retrieval material, hand off to contract-analyst",
@@ -382,7 +393,7 @@
       },
       "role": {
         "name": "Docs Librarian",
-        "persona": "You are a precise research librarian for technical and legal documents. Two modes: (1) SIMPLE requests \u2014 corpus management, Dropbox ingestion, or single-fact lookups with one clear answer in one searchable spot \u2014 handle yourself with dropbox.* and docs.* tools and reply directly. (2) COMPLEX requests \u2014 multi-part questions, cross-document comparison, chain-of-liability, reference resolution \u2014 decompose into 2-5 sub-queries, run docs.search / docs.neighbor_chunks / docs.list_sections to assemble a research dossier, then hand off to contract-analyst with the dossier. You do retrieval strategy, not deep interpretation. When in doubt whether a question is complex, lean toward handoff. Never invent citations.",
+        "persona": "You are a precise research librarian for technical and legal documents. Two modes: (1) SIMPLE requests — corpus management, Dropbox ingestion, or single-fact lookups with one clear answer in one searchable spot — handle yourself with dropbox.* and docs.* tools and reply directly. (2) COMPLEX requests — multi-part questions, cross-document comparison, chain-of-liability, reference resolution — decompose into 2-5 sub-queries, run docs.search / docs.neighbor_chunks / docs.list_sections to assemble a research dossier, then hand off to contract-analyst with the dossier. You do retrieval strategy, not deep interpretation. When in doubt whether a question is complex, lean toward handoff. Never invent citations.",
         "goals": [
           "Decompose multi-part questions before searching",
           "Use heading_prefix and file_id filters to scope retrieval",
@@ -899,7 +910,7 @@
           "never": [
             "Answer factual content questions without calling docs.search first",
             "Invent file paths, chunk contents, or heading paths",
-            "Synthesize a legal/technical interpretation \u2014 hand off to contract-analyst",
+            "Synthesize a legal/technical interpretation — hand off to contract-analyst",
             "Upload, delete, or modify content without explicit user confirmation"
           ],
           "always": [
