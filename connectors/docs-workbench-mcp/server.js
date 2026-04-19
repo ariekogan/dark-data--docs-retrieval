@@ -44,7 +44,7 @@ server.tool(
   "ui.listPlugins",
   "List UI plugins hosted by this connector.",
   {},
-  async () => ok({ plugins: PLUGINS.map(({ id, name, version, description, type }) => ({ id, name, version, description, type })) })
+  async () => ok({ plugins: PLUGINS.map((p) => ({ ...p })) })
 );
 
 server.tool(
