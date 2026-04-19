@@ -14,6 +14,8 @@ import { z } from "zod";
 
 const CONNECTOR_ID = "docs-workbench-mcp";
 
+const IFRAME_URL = "/ui/workbench/index.html";
+
 const PLUGINS = [
   {
     id: `mcp:${CONNECTOR_ID}:workbench`,
@@ -21,9 +23,11 @@ const PLUGINS = [
     version: "0.1.0",
     type: "ui",
     description: "Setup wizard (Dropbox connection) and corpus manager for the docs-retrieval solution.",
+    // Top-level iframeUrl for health checks + legacy readers
+    iframeUrl: IFRAME_URL,
     render: {
       mode: "iframe",
-      iframeUrl: `/ui/workbench/index.html`,
+      iframeUrl: IFRAME_URL,
     },
     capabilities: {},
     channels: ["command"],
