@@ -69,11 +69,8 @@
         "version": "0.1.0",
         "type": "ui",
         "render": {
-          "mode": "adaptive",
-          "iframeUrl": "/ui/workbench/index.html",
-          "reactNative": {
-            "component": "workbench"
-          }
+          "mode": "iframe",
+          "iframeUrl": "/ui/workbench/index.html"
         },
         "capabilities": {},
         "channels": [
@@ -955,6 +952,6 @@
       "ui_capable": true
     }
   ],
-  "exported_at": "2026-04-20T02:05:46",
+  "exported_at": "2026-04-20T02:09:12",
   "export_version": "1.0"
 }

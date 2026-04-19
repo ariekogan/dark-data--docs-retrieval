@@ -45,9 +45,8 @@
       "version": "0.1.0",
       "type": "ui",
       "render": {
-        "mode": "adaptive",
-        "iframeUrl": "/ui/workbench/index.html",
-        "reactNative": { "component": "workbench" }
+        "mode": "iframe",
+        "iframeUrl": "/ui/workbench/index.html"
       },
       "capabilities": {},
       "channels": ["command"],

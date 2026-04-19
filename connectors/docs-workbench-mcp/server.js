@@ -30,9 +30,8 @@ const WORKBENCH_MANIFEST = {
   version: "0.1.0",
   description: "Dropbox setup wizard + corpus manager for the docs-retrieval solution.",
   render: {
-    mode: "adaptive",
+    mode: "iframe",
     iframeUrl: "/ui/workbench/index.html",
-    reactNative: { component: "workbench" },
   },
   capabilities: {},
   channels: ["command"],
