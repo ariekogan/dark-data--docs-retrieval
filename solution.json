@@ -16,27 +16,50 @@
       "name": "Docs Librarian",
       "role": "orchestrator",
       "description": "Entry point. Decomposes questions, runs targeted retrieval, hands off to contract-analyst for deep reasoning.",
-      "connectors": ["dropbox-mcp", "docs-index-mcp"]
+      "connectors": [
+        "dropbox-mcp",
+        "docs-index-mcp"
+      ]
     },
     {
       "id": "contract-analyst",
       "name": "Contract Analyst",
       "role": "worker",
       "description": "Deep multi-hop reasoning over technical/legal documents. Receives research dossiers from the librarian.",
-      "connectors": ["docs-index-mcp"]
+      "connectors": [
+        "docs-index-mcp"
+      ]
     }
   ],
   "grants": [],
   "handoffs": [],
   "routing": {
-    "telegram": { "default_skill": "docs-librarian", "description": "Telegram messages start at the librarian" },
-    "email":    { "default_skill": "docs-librarian", "description": "Emails start at the librarian" },
-    "web":      { "default_skill": "docs-librarian", "description": "Web/chat messages start at the librarian" }
+    "telegram": {
+      "default_skill": "docs-librarian",
+      "description": "Telegram messages start at the librarian"
+    },
+    "email": {
+      "default_skill": "docs-librarian",
+      "description": "Emails start at the librarian"
+    },
+    "web": {
+      "default_skill": "docs-librarian",
+      "description": "Web/chat messages start at the librarian"
+    }
   },
   "platform_connectors": [
-    { "id": "docs-index-mcp", "required": true },
-    { "id": "dropbox-mcp", "required": true },
-    { "id": "docs-workbench-mcp", "required": true }
+    {
+      "id": "docs-index-mcp",
+      "required": true
+    },
+    {
+      "id": "dropbox-mcp",
+      "required": true
+    },
+    {
+      "id": "docs-workbench-mcp",
+      "required": true
+    }
   ],
   "ui_plugins": [
     {
@@ -49,9 +72,22 @@
         "iframeUrl": "/ui/workbench/index.html"
       },
       "capabilities": {},
-      "channels": ["command"],
+      "channels": [
+        "command"
+      ],
       "commands": []
     }
   ],
-  "security_contracts": []
+  "security_contracts": [],
+  "connectors": [
+    {
+      "id": "dropbox-mcp",
+      "env": {
+        "DROPBOX_SHARED_MODE": "1",
+        "DROPBOX_APP_KEY": "inqzz7agquyth38",
+        "DROPBOX_APP_SECRET": "s3sfjxghf6vwlst",
+        "DROPBOX_OAUTH_REDIRECT_URI": "https://api.ateam-ai.com/api/integrations/dropbox/callback"
+      }
+    }
+  ]
 }
