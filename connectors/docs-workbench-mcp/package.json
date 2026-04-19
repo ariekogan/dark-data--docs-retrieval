@@ -1,0 +1,14 @@
+{
+  "name": "adas-docs-workbench-mcp",
+  "version": "0.1.0",
+  "description": "ADAS Docs Workbench \u2014 UI plugin host for the docs-retrieval solution. Setup wizard (Dropbox connect) + corpus manager.",
+  "type": "module",
+  "main": "server.js",
+  "bin": { "adas-docs-workbench-mcp": "./server.js" },
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.17"
+  },
+  "engines": { "node": ">=22" }
+}
