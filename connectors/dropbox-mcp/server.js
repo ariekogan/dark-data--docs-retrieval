@@ -36,15 +36,25 @@ const ENV_APP_KEY = process.env.DROPBOX_APP_KEY || "";
 const ENV_APP_SECRET = process.env.DROPBOX_APP_SECRET || "";
 const ENV_REDIRECT_URI = process.env.DROPBOX_OAUTH_REDIRECT_URI || "";
 
-/** Get the effective app config — SQLite first, env fallback. */
+// Platform default — used when neither SQLite nor env supply a redirect URI.
+const DEFAULT_REDIRECT_URI = "https://api.ateam-ai.com/api/integrations/dropbox/callback";
+
+/** Get the effective app config — SQLite first, env fallback. redirect_uri always populated. */
 function effectiveAppConfig() {
-  const db = storage.getAppConfigInternal();
-  if (db) return { ...db, source: "sqlite" };
+  const dbCfg = storage.getAppConfigInternal();
+  if (dbCfg) {
+    return {
+      app_key: dbCfg.app_key,
+      app_secret: dbCfg.app_secret,
+      redirect_uri: dbCfg.redirect_uri || DEFAULT_REDIRECT_URI,
+      source: "sqlite",
+    };
+  }
   if (ENV_APP_KEY && ENV_APP_SECRET) {
     return {
       app_key: ENV_APP_KEY,
       app_secret: ENV_APP_SECRET,
-      redirect_uri: ENV_REDIRECT_URI,
+      redirect_uri: ENV_REDIRECT_URI || DEFAULT_REDIRECT_URI,
       source: "env",
     };
   }
@@ -142,7 +152,7 @@ server.tool(
   async (args) =>
     handle(args, async (actor) => {
       const cfg = effectiveAppConfig();
-      if (!cfg || !cfg.app_key || !cfg.redirect_uri) {
+      if (!cfg || !cfg.app_key) {
         return err("Dropbox app not configured — set it via the workbench UI (dropbox.app.set_config).", { code: "APP_NOT_CONFIGURED" });
       }
       const nonce = crypto.randomUUID();
