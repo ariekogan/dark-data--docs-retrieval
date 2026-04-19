@@ -60,19 +60,24 @@ server.tool(
   })
 );
 
-// Per fleet-mcp reference: getPlugin returns the FULL manifest DIRECTLY
-// (not wrapped), matches on short id OR the FQN (mcp:<connector>:<short-id>).
+// Per personal-assistant-ui-mcp reference: argument is `id` (NOT `plugin_id`).
+// Return the FULL manifest DIRECTLY (no { plugin: ... } wrapper).
+// Accept short id OR the FQN (mcp:<connector>:<short-id>) for compat.
 server.tool(
   "ui.getPlugin",
   "Return the full manifest for a specific plugin by id.",
-  { plugin_id: z.string() },
-  async ({ plugin_id }) => {
-    // Accept both short id and fully-qualified id.
-    const shortId = plugin_id.startsWith(`mcp:${CONNECTOR_ID}:`)
-      ? plugin_id.slice(`mcp:${CONNECTOR_ID}:`.length)
-      : plugin_id;
-    const m = PLUGINS.find((x) => x.id === shortId || x.id === plugin_id);
-    if (!m) return err(`Plugin not found: ${plugin_id}`);
+  {
+    id: z.string().optional().describe("Plugin id (short form, e.g. 'workbench')"),
+    plugin_id: z.string().optional().describe("Legacy alias for id"),
+  },
+  async (args) => {
+    const raw = args?.id || args?.plugin_id;
+    if (!raw) return err("id required");
+    const shortId = raw.startsWith(`mcp:${CONNECTOR_ID}:`)
+      ? raw.slice(`mcp:${CONNECTOR_ID}:`.length)
+      : raw;
+    const m = PLUGINS.find((x) => x.id === shortId || x.id === raw);
+    if (!m) return err(`Plugin not found: ${raw}`);
     return ok(m);
   }
 );
