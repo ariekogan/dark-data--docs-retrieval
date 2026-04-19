@@ -1,7 +1,7 @@
 {
   "id": "docs-retrieval",
   "name": "Docs Retrieval",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Two-skill orchestrator solution for technical/contract document retrieval, with a Dropbox setup wizard + corpus manager UI.",
   "orchestrator_skill": "docs-librarian",
   "identity": {
@@ -14,27 +14,31 @@
     {
       "id": "docs-librarian",
       "name": "Docs Librarian",
-      "role": "orchestrator"
+      "role": "orchestrator",
+      "description": "Entry point. Decomposes questions, runs targeted retrieval, hands off to contract-analyst for deep reasoning.",
+      "entry_channels": ["web", "telegram", "email"],
+      "connectors": ["dropbox-mcp", "docs-index-mcp"]
     },
     {
       "id": "contract-analyst",
       "name": "Contract Analyst",
-      "role": "worker"
+      "role": "worker",
+      "description": "Deep multi-hop reasoning over technical/legal documents. Receives research dossiers from the librarian.",
+      "connectors": ["docs-index-mcp"]
     }
   ],
   "grants": [],
   "handoffs": [],
   "routing": {
-    "telegram": { "default_skill": "docs-librarian" },
-    "email":    { "default_skill": "docs-librarian" },
-    "web":      { "default_skill": "docs-librarian" }
+    "telegram": { "default_skill": "docs-librarian", "description": "Telegram messages start at the librarian" },
+    "email":    { "default_skill": "docs-librarian", "description": "Emails start at the librarian" },
+    "web":      { "default_skill": "docs-librarian", "description": "Web/chat messages start at the librarian" }
   },
   "platform_connectors": [
     {
       "id": "docs-index-mcp",
       "required": true,
-      "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search, heading/section navigation)",
-      "used_by": ["docs-librarian", "contract-analyst"]
+      "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search, heading/section navigation)"
     }
   ],
   "ui_plugins": [
@@ -44,9 +48,8 @@
       "version": "0.1.0",
       "type": "ui",
       "description": "Dropbox setup wizard + corpus manager. First-run entry point.",
-      "iframeUrl": "/ui/workbench/index.html",
       "render": {
-        "mode": "iframe",
+        "mode": "adaptive",
         "iframeUrl": "/ui/workbench/index.html"
       },
       "capabilities": {},

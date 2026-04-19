@@ -6,64 +6,67 @@
   <title>Docs Workbench</title>
   <style>
     :root {
-      --bg: #0b0d10;
-      --surface: #14171c;
-      --surface-2: #1b1f26;
-      --border: #2a2f38;
-      --text: #e6e9ee;
-      --text-muted: #8b94a0;
-      --accent: #5c9cff;
-      --accent-hover: #7ab0ff;
-      --success: #4ade80;
-      --warning: #fbbf24;
-      --error: #ef4444;
-      --radius: 8px;
+      --bg: #0b0d10; --surface: #14171c; --surface-2: #1b1f26; --border: #2a2f38;
+      --text: #e6e9ee; --text-muted: #8b94a0; --accent: #5c9cff; --accent-hover: #7ab0ff;
+      --success: #4ade80; --warning: #fbbf24; --error: #ef4444; --radius: 8px;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100%; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100%; }
     body { display: flex; flex-direction: column; }
-    header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    header { padding: 16px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; }
     header h1 { margin: 0; font-size: 18px; font-weight: 600; }
     header .subtitle { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
     main { flex: 1; overflow-y: auto; padding: 24px; max-width: 960px; margin: 0 auto; width: 100%; }
-    button { background: var(--accent); color: white; border: none; padding: 8px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms; }
+    button { background: var(--accent); color: white; border: none; padding: 8px 14px;
+      border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms; }
     button:hover:not(:disabled) { background: var(--accent-hover); }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
     button.secondary:hover:not(:disabled) { background: var(--border); }
     button.danger { background: transparent; color: var(--error); border: 1px solid var(--error); }
     button.danger:hover:not(:disabled) { background: var(--error); color: white; }
-    input[type="text"], textarea { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 8px 10px; border-radius: var(--radius); font-size: 13px; width: 100%; font-family: inherit; }
+    input[type="text"], textarea { background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); padding: 8px 10px; border-radius: var(--radius); font-size: 13px; width: 100%; font-family: inherit; }
     input[type="text"]:focus, textarea:focus { outline: none; border-color: var(--accent); }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; margin-bottom: 16px; }
     .card h2 { margin: 0 0 12px 0; font-size: 16px; font-weight: 600; }
     .row { display: flex; align-items: center; gap: 12px; }
     .row.between { justify-content: space-between; }
-    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+      border-radius: 12px; font-size: 12px; font-weight: 500; }
     .badge.ok { background: rgba(74, 222, 128, 0.12); color: var(--success); }
     .badge.off { background: rgba(139, 148, 160, 0.12); color: var(--text-muted); }
-    .badge.warn { background: rgba(251, 191, 36, 0.12); color: var(--warning); }
+    .live-badge { display: none; margin-left: 8px; font-size: 10px; color: var(--success); }
     .muted { color: var(--text-muted); font-size: 12px; }
     .spacer { height: 8px; }
     .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
     .empty-state h3 { margin: 12px 0 8px 0; color: var(--text); font-size: 16px; }
     .corpus-list { display: flex; flex-direction: column; gap: 8px; }
-    .corpus-row { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .corpus-row { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .corpus-row .info { flex: 1; min-width: 0; }
     .corpus-row .name { font-weight: 600; }
     .corpus-row .stats { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
     .corpus-row .actions { display: flex; gap: 6px; flex-shrink: 0; }
-    .log { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; font-family: "SF Mono", Menlo, monospace; font-size: 12px; color: var(--text-muted); max-height: 140px; overflow-y: auto; margin-top: 8px; }
+    .log { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 12px; font-family: "SF Mono", Menlo, monospace; font-size: 12px;
+      color: var(--text-muted); max-height: 140px; overflow-y: auto; margin-top: 8px; }
     .log .line { padding: 2px 0; }
     .log .line.err { color: var(--error); }
     .log .line.ok { color: var(--success); }
-    .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
-    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 460px; width: 90%; }
+    .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; max-width: 460px; width: 90%; }
     .modal h3 { margin: 0 0 14px 0; font-size: 16px; }
     .modal .field { margin-bottom: 14px; }
     .modal .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
     .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--text-muted); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--text-muted);
+      border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
@@ -73,100 +76,139 @@
       <h1>📚 Docs Workbench</h1>
       <div class="subtitle">Connect a document source, build corpora, answer questions.</div>
     </div>
-    <div id="dropbox-badge"></div>
+    <div id="dropbox-badge">
+      <span class="badge off">○ Dropbox: checking…</span>
+      <span class="live-badge" id="liveBadge">● LIVE</span>
+    </div>
   </header>
   <main id="main">
-    <div class="empty-state"><div class="spinner"></div><div style="margin-top: 8px;">Loading…</div></div>
+    <!-- Initial render: shows default "not connected" state.
+         Mobile sees this and nothing else — desktop silently upgrades via mcpProxy. -->
+    <div class="card">
+      <h2>Welcome to Docs Workbench</h2>
+      <p class="muted">Loading…</p>
+    </div>
   </main>
 
   <script>
-    // ─────────────────────────────────────────────────────────────
-    // MCP host bridge (postMessage)
-    // ─────────────────────────────────────────────────────────────
-    const PLUGIN_ID = 'mcp:docs-workbench-mcp:workbench';
+    // ═══════════════════════════════════════════════════════════════════════
+    // 1) EMBEDDED DEFAULTS — rendered immediately, work on mobile where
+    //    mcpProxy relay is unavailable. Live data upgrades silently on web.
+    // ═══════════════════════════════════════════════════════════════════════
+    const DEFAULTS = {
+      dropbox: { connected: false, account_email: null },
+      corpora: [],
+    };
+
+    const state = {
+      dropbox: { ...DEFAULTS.dropbox },
+      corpora: [...DEFAULTS.corpora],
+      syncing: {},   // corpus_id -> [{text, cls}]
+      hostReady: false,
+    };
+
+    const $ = (sel) => document.querySelector(sel);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+      ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    const fmtTs = (t) => t ? new Date(t).toLocaleString() : '—';
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 2) POSTMESSAGE BRIDGE per spec _cross_connector_data_access:
+    //    - Listen for { source: "adas-host", message: { type: "init"|"mcp-result" } }
+    //    - Send { source: "adas-plugin", message: { action: "mcp-call",
+    //             payload: { requestId, toolName: "cp.fe_api",
+    //                        args: { method: "mcpProxy", params: { connectorId, tool, args } } } } }
+    //    - Wait for "init" before first MCP call
+    //    - Unwrap result.content[0].text (may be double-wrapped)
+    // ═══════════════════════════════════════════════════════════════════════
+    let counter = 0;
     const pending = new Map();
-    let reqSeq = 0;
 
-    function mcpCall(tool, args = {}, connectorId = null) {
-      return new Promise((resolve, reject) => {
-        const id = 'req_' + (++reqSeq);
-        pending.set(id, { resolve, reject, at: Date.now() });
-        window.parent.postMessage({
-          type: 'adas-plugin',
-          pluginId: PLUGIN_ID,
-          action: 'mcpCall',
-          requestId: id,
-          payload: { tool, args, connectorId },
-        }, '*');
-        // Timeout
-        setTimeout(() => {
-          if (pending.has(id)) {
-            pending.delete(id);
-            reject(new Error(`mcpCall timeout: ${tool}`));
-          }
-        }, 60000);
-      });
-    }
-
-    window.addEventListener('message', (ev) => {
-      const d = ev.data;
-      if (!d || d.type !== 'adas-host') return;
-      const id = d.requestId;
-      if (!id || !pending.has(id)) return;
-      const { resolve, reject } = pending.get(id);
-      pending.delete(id);
-      if (d.error) reject(new Error(d.error));
-      else {
-        // Tool results come as { content: [{ type:'text', text:'{...}' }] }
-        const r = d.result;
-        if (r && Array.isArray(r.content) && r.content[0]?.text) {
-          try { resolve(JSON.parse(r.content[0].text)); }
-          catch { resolve(r); }
-        } else {
-          resolve(r);
-        }
+    window.addEventListener("message", (ev) => {
+      const d = ev.data || {};
+      if (d.source !== "adas-host") return;
+      const msg = d.message;
+      if (!msg) return;
+      if (msg.type === "init") {
+        state.hostReady = true;
+        refreshLive();
+        return;
+      }
+      if (msg.type === "mcp-result") {
+        const { requestId, result, error } = msg.payload || {};
+        const p = pending.get(requestId);
+        if (!p) return;
+        pending.delete(requestId);
+        if (error) p.reject(new Error(error));
+        else p.resolve(unwrap(result));
       }
     });
 
-    // ─────────────────────────────────────────────────────────────
-    // State + helpers
-    // ─────────────────────────────────────────────────────────────
-    const state = {
-      dropbox: { connected: false, account_email: null },
-      corpora: [],
-      syncing: {},  // corpus_id -> log lines[]
-    };
-    const $ = (sel) => document.querySelector(sel);
-    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-    const fmtTs = (t) => t ? new Date(t).toLocaleString() : '—';
+    function unwrap(raw) {
+      if (raw?.content?.[0]?.type === "text") {
+        try { raw = JSON.parse(raw.content[0].text); } catch {}
+      }
+      if (raw?.content?.[0]?.type === "text") {
+        try { raw = JSON.parse(raw.content[0].text); } catch {}
+      }
+      return raw;
+    }
 
-    // ─────────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────────
+    function mcpCall(tool, args, connectorId) {
+      const requestId = "req_" + (++counter) + "_" + Date.now();
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          pending.delete(requestId);
+          reject(new Error("timeout"));
+        }, 20000);
+        pending.set(requestId, {
+          resolve: (r) => { clearTimeout(timeout); resolve(r); },
+          reject:  (e) => { clearTimeout(timeout); reject(e); },
+        });
+        window.parent.postMessage({
+          source: "adas-plugin",
+          message: {
+            action: "mcp-call",
+            payload: {
+              requestId,
+              toolName: "cp.fe_api",
+              args: { method: "mcpProxy", params: { connectorId, tool, args } },
+            },
+          },
+        }, "*");
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 3) RENDER — pure function of state. Called on load (with DEFAULTS) AND
+    //    again whenever live data arrives. Mobile stops at step 1; web continues.
+    // ═══════════════════════════════════════════════════════════════════════
     function renderBadge() {
       const el = $('#dropbox-badge');
+      const live = state.hostReady ? '<span class="live-badge" id="liveBadge" style="display:inline">● LIVE</span>' : '';
       if (state.dropbox.connected) {
-        el.innerHTML = `<span class="badge ok">● Dropbox: ${esc(state.dropbox.account_email || 'connected')}</span>`;
+        el.innerHTML = `<span class="badge ok">● Dropbox: ${esc(state.dropbox.account_email || 'connected')}</span>${live}`;
       } else {
-        el.innerHTML = `<span class="badge off">○ Dropbox: not connected</span>`;
+        el.innerHTML = `<span class="badge off">○ Dropbox: not connected</span>${live}`;
       }
     }
 
-    function renderSetup() {
-      $('#main').innerHTML = `
-        <div class="card">
-          <h2>Connect your Dropbox</h2>
-          <p class="muted">This solution pulls documents from a Dropbox folder, indexes them, and answers questions about them.
-            Connect your Dropbox once for the whole organization.</p>
-          <div class="spacer"></div>
-          <button id="btn-connect">Connect Dropbox →</button>
-          <div id="connect-log" class="log" style="display:none;"></div>
-        </div>
-      `;
-      $('#btn-connect').addEventListener('click', connectDropbox);
-    }
-
     function renderMain() {
+      if (!state.dropbox.connected) {
+        $('#main').innerHTML = `
+          <div class="card">
+            <h2>Connect your Dropbox</h2>
+            <p class="muted">This solution pulls documents from a Dropbox folder, indexes them,
+              and answers questions about them. Connect your Dropbox once for the whole organization.</p>
+            <div class="spacer"></div>
+            <button id="btn-connect">Connect Dropbox →</button>
+            <div id="connect-log" class="log" style="display:none;"></div>
+          </div>
+        `;
+        $('#btn-connect').addEventListener('click', connectDropbox);
+        return;
+      }
+
       const corpora = state.corpora;
       $('#main').innerHTML = `
         <div class="card">
@@ -195,15 +237,18 @@
       `;
       $('#btn-disconnect').addEventListener('click', disconnectDropbox);
       $('#btn-new-corpus').addEventListener('click', openNewCorpusModal);
-      document.querySelectorAll('[data-sync]').forEach(b => b.addEventListener('click', () => syncCorpus(b.dataset.sync, b.dataset.path || '')));
-      document.querySelectorAll('[data-delete]').forEach(b => b.addEventListener('click', () => deleteCorpus(b.dataset.delete)));
+      document.querySelectorAll('[data-sync]').forEach(b =>
+        b.addEventListener('click', () => syncCorpus(b.dataset.sync, b.dataset.path || '')));
+      document.querySelectorAll('[data-delete]').forEach(b =>
+        b.addEventListener('click', () => deleteCorpus(b.dataset.delete)));
     }
 
     function renderCorpusRow(c) {
       const lastSync = c.last_indexed_at ? fmtTs(c.last_indexed_at) : 'never';
       const path = c.source_config?.path || '(no path set)';
       const logHtml = state.syncing[c.corpus_id]
-        ? `<div class="log">${state.syncing[c.corpus_id].map(l => `<div class="line ${l.cls||''}">${esc(l.text)}</div>`).join('')}</div>`
+        ? `<div class="log">${state.syncing[c.corpus_id].map(l =>
+            `<div class="line ${l.cls||''}">${esc(l.text)}</div>`).join('')}</div>`
         : '';
       return `
         <div class="corpus-row">
@@ -252,16 +297,13 @@
         $('#nc-create').innerHTML = '<span class="spinner"></span> Creating…';
         try {
           const res = await mcpCall('docs.corpus.create', {
-            name,
-            source_type: 'dropbox',
-            source_config: { path, recursive: true },
+            name, source_type: 'dropbox', source_config: { path, recursive: true },
           }, 'docs-index-mcp');
-          if (!res.ok) throw new Error(res.error || 'create failed');
+          if (res?.ok === false) throw new Error(res.error || 'create failed');
           modal.remove();
           await loadCorpora();
           renderMain();
-          // Auto-sync
-          syncCorpus(res.corpus_id, path);
+          syncCorpus(res.corpus_id || res._id, path);
         } catch (e) {
           alert('Create failed: ' + e.message);
           $('#nc-create').disabled = false;
@@ -270,9 +312,10 @@
       });
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Actions
-    // ─────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // 4) ACTIONS — every one uses mcpCall. Wrapped in try/catch since mobile
+    //    will throw "timeout" on every call; we just quietly preserve defaults.
+    // ═══════════════════════════════════════════════════════════════════════
     async function connectDropbox() {
       const btn = $('#btn-connect');
       const log = $('#connect-log');
@@ -281,7 +324,7 @@
       btn.disabled = true;
       try {
         const res = await mcpCall('dropbox.setup', {}, 'dropbox-mcp');
-        if (!res.ok) throw new Error(res.error || 'setup failed');
+        if (res?.ok === false) throw new Error(res.error || 'setup failed');
         log.innerHTML += '<div class="line ok">✓ OAuth URL received. Opening…</div>';
         window.open(res.auth_url, '_blank', 'noopener,noreferrer,width=600,height=720');
         log.innerHTML += '<div class="line">Waiting for Dropbox callback…</div>';
@@ -308,13 +351,7 @@
           }
         } catch {}
       }
-      logEl.innerHTML += '<div class="line err">✗ Timed out. If you completed the browser flow, click "Refresh" to check again.</div>';
-      const btn = document.createElement('button');
-      btn.className = 'secondary';
-      btn.style.marginTop = '8px';
-      btn.textContent = 'Refresh';
-      btn.addEventListener('click', init);
-      logEl.appendChild(btn);
+      logEl.innerHTML += '<div class="line err">✗ Timed out. Click Refresh after completing the flow.</div>';
     }
 
     async function disconnectDropbox() {
@@ -322,29 +359,27 @@
       try {
         await mcpCall('dropbox.disconnect', {}, 'dropbox-mcp');
         state.dropbox = { connected: false, account_email: null };
+        state.corpora = [];
         renderBadge();
-        renderSetup();
+        renderMain();
       } catch (e) {
         alert('Disconnect failed: ' + e.message);
       }
     }
 
     async function syncCorpus(corpus_id, path) {
-      const c = state.corpora.find(x => x.corpus_id === corpus_id);
-      if (!c) return;
+      if (!corpus_id) return;
       state.syncing[corpus_id] = [{ text: 'Sync started…', cls: '' }];
       renderMain();
       try {
         const res = await mcpCall('dropbox.index_folder', {
-          corpus_id,
-          path: path || c.source_config?.path || '/',
-          recursive: true,
-          use_cursor: true,
+          corpus_id, path: path || '/', recursive: true, use_cursor: true,
         }, 'dropbox-mcp');
-        if (!res.ok) throw new Error(res.error || 'sync failed');
+        if (res?.ok === false) throw new Error(res.error || 'sync failed');
         const log = state.syncing[corpus_id];
-        log.push({ text: `Walked ${res.walked} entries`, cls: '' });
-        log.push({ text: `Indexed: ${res.indexed} · Skipped: ${res.skipped} · Failed: ${res.failed}`, cls: res.failed > 0 ? 'warn' : 'ok' });
+        log.push({ text: `Walked ${res.walked || 0} entries`, cls: '' });
+        log.push({ text: `Indexed: ${res.indexed || 0} · Skipped: ${res.skipped || 0} · Failed: ${res.failed || 0}`,
+          cls: (res.failed || 0) > 0 ? 'warn' : 'ok' });
         if (res.errors?.length) log.push({ text: `First error: ${res.errors[0].path}: ${res.errors[0].error}`, cls: 'err' });
         await loadCorpora();
         renderMain();
@@ -357,7 +392,7 @@
     async function deleteCorpus(corpus_id) {
       const c = state.corpora.find(x => x.corpus_id === corpus_id);
       if (!c) return;
-      if (!confirm(`Delete corpus "${c.name}"? This removes all files and chunks (not the Dropbox originals).`)) return;
+      if (!confirm(`Delete corpus "${c.name}"? Removes all files + chunks (Dropbox originals untouched).`)) return;
       try {
         await mcpCall('docs.corpus.delete', { corpus_id }, 'docs-index-mcp');
         await loadCorpora();
@@ -371,37 +406,30 @@
       try {
         const res = await mcpCall('docs.corpus.list', {}, 'docs-index-mcp');
         state.corpora = (res.corpora || []).map(c => ({ ...c, corpus_id: c.corpus_id || c._id }));
-      } catch (e) {
-        state.corpora = [];
+      } catch {
+        // Silent — mobile will always hit this. Keep whatever we had.
       }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Init
-    // ─────────────────────────────────────────────────────────────
-    async function init() {
+    // Called AFTER init message from host — silently tries live data and upgrades UI.
+    async function refreshLive() {
       try {
         const s = await mcpCall('dropbox.status', {}, 'dropbox-mcp');
-        state.dropbox = s;
-        renderBadge();
-        if (s.connected) {
-          await loadCorpora();
-          renderMain();
-        } else {
-          renderSetup();
-        }
-      } catch (e) {
-        $('#main').innerHTML = `
-          <div class="card">
-            <h2>Couldn't reach the backend</h2>
-            <p class="muted">${esc(e.message)}</p>
-            <button class="secondary" onclick="init()">Retry</button>
-          </div>
-        `;
+        if (s && typeof s.connected === 'boolean') state.dropbox = s;
+        if (state.dropbox.connected) await loadCorpora();
+      } catch {
+        // Silent.
       }
+      renderBadge();
+      renderMain();
     }
 
-    init();
+    // ═══════════════════════════════════════════════════════════════════════
+    // 5) INITIAL RENDER — immediate, uses DEFAULTS, no MCP calls required.
+    //    Mobile stops here; desktop replaces via refreshLive() on host init.
+    // ═══════════════════════════════════════════════════════════════════════
+    renderBadge();
+    renderMain();
   </script>
 </body>
 </html>
