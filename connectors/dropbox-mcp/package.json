@@ -1,0 +1,15 @@
+{
+  "name": "adas-dropbox-mcp",
+  "version": "0.1.0",
+  "description": "ADAS Dropbox MCP",
+  "type": "module",
+  "main": "server.js",
+  "bin": { "adas-dropbox-mcp": "./server.js" },
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "mongodb": "^6.8.0",
+    "zod": "^3.25.17"
+  },
+  "engines": { "node": ">=22" }
+}

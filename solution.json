@@ -1,0 +1,49 @@
+{
+  "id": "docs-retrieval",
+  "name": "Docs Retrieval",
+  "version": "0.1.0",
+  "description": "Retrieval assistant for user document corpora. Indexes Dropbox folders into an embedding-backed index and answers questions with citations.",
+  "identity": {
+    "actor_types": [],
+    "admin_roles": [],
+    "default_actor_type": "",
+    "default_roles": []
+  },
+  "skills": [
+    {
+      "id": "docs-retrieval",
+      "name": "Docs Retrieval",
+      "role": "worker"
+    }
+  ],
+  "grants": [],
+  "handoffs": [],
+  "routing": {
+    "telegram": {
+      "default_skill": "docs-retrieval"
+    },
+    "email": {
+      "default_skill": "docs-retrieval"
+    },
+    "web": {
+      "default_skill": "docs-retrieval"
+    }
+  },
+  "platform_connectors": [
+    {
+      "id": "docs-index-mcp",
+      "required": true,
+      "description": "Source-agnostic document corpus retrieval (chunking, embeddings, cosine search)",
+      "used_by": [
+        "docs-retrieval"
+      ]
+    },
+    {
+      "id": "dropbox-mcp",
+      "description": "",
+      "required": true,
+      "used_by": []
+    }
+  ],
+  "security_contracts": []
+}
