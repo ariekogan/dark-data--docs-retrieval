@@ -125,6 +125,17 @@ export async function download(actorId, { path }) {
   return contentDownload("/2/files/download", { path }, t);
 }
 
+/**
+ * Export a file that's not directly downloadable (Dropbox Paper etc.).
+ * Uses /2/files/export. `format` must be one of the options in the file's
+ * metadata.export_info.export_options (commonly 'html' or 'markdown').
+ * Returns { meta, buffer } just like download().
+ */
+export async function exportFile(actorId, { path, format = "html" }) {
+  const t = await getValidAccessToken(actorId);
+  return contentDownload("/2/files/export", { path, export_format: format }, t);
+}
+
 export async function getTemporaryLink(actorId, { path }) {
   const t = await getValidAccessToken(actorId);
   return rpc("/2/files/get_temporary_link", { path }, t);

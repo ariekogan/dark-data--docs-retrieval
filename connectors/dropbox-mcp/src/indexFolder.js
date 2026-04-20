@@ -92,14 +92,29 @@ export async function indexFolder({ actor, corpus_id, path, recursive = true, us
       if ((entry.size || 0) > MAX_FILE_BYTES) { skipped += 1; continue; }
 
       try {
-        const { buffer } = await dropbox.download(actor, { path: entry.path_lower });
+        // Dropbox Paper files (and Google Docs, etc.) are NOT directly
+        // downloadable. They expose `export_info.export_options` instead
+        // (usually 'html' and 'markdown'). Prefer html for richer structure.
+        const needsExport = entry.is_downloadable === false && entry.export_info;
+        let buffer;
+        let effectiveMime = guessMime(entry.path_lower);
+        if (needsExport) {
+          const options = entry.export_info.export_options || [];
+          const format = options.includes("html") ? "html" : (options[0] || "html");
+          const r = await dropbox.exportFile(actor, { path: entry.path_lower, format });
+          buffer = r.buffer;
+          effectiveMime = format === "markdown" ? "text/markdown" : "text/html";
+        } else {
+          const r = await dropbox.download(actor, { path: entry.path_lower });
+          buffer = r.buffer;
+        }
         const content_base64 = buffer.toString("base64");
         const result = await client.callTool("docs.ingest.file", {
           corpus_id,
           source_id: entry.path_lower,
           source_rev: entry.content_hash || entry.rev,
           path: entry.path_display,
-          mime: guessMime(entry.path_lower),
+          mime: effectiveMime,
           content_base64,
         });
         if (result?.skipped) skipped += 1; else indexed += 1;
