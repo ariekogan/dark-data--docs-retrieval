@@ -3,7 +3,14 @@ import * as dropbox from "./dropboxClient.js";
 const DOCS_INDEX_URL = process.env.DOCS_INDEX_URL || "http://docs-index-mcp:7311";
 const TENANT_HEADER = process.env.ADAS_TENANT || process.env.TENANT || "";
 
-const SUPPORTED_EXTS = new Set([".md",".markdown",".txt",".html",".htm",".pdf",".docx",".csv",".json",".xml",".js",".ts",".tsx",".jsx",".py",".go",".java",".rb",".rs",".c",".cpp",".h",".sh",".yaml",".yml",".toml"]);
+const SUPPORTED_EXTS = new Set([
+  ".md", ".markdown", ".txt", ".html", ".htm",
+  ".pdf", ".docx",
+  ".paper",   // Dropbox Paper — download returns HTML-like text
+  ".csv", ".json", ".xml",
+  ".js", ".ts", ".tsx", ".jsx", ".py", ".go", ".java", ".rb", ".rs", ".c", ".cpp", ".h", ".sh",
+  ".yaml", ".yml", ".toml",
+]);
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 function hasSupportedExt(p) {
