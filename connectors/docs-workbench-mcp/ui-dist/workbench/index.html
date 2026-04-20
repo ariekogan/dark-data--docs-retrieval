@@ -387,45 +387,50 @@
         //    user gesture on an anchor with target=_blank, which Chrome allows
         //    even inside sandboxed iframes (provided allow-popups-to-escape-
         //    sandbox is set on the frame). No programmatic window.open().
+        // Try to copy the OAuth URL to clipboard immediately so the user only
+        // needs to open a new tab and paste. Fall back to a manual textarea
+        // if the clipboard API is blocked.
+        let autoCopied = false;
+        try {
+          await navigator.clipboard.writeText(setup.auth_url);
+          autoCopied = true;
+        } catch {}
+
         log.innerHTML = ''; // clear "Requesting…"
         log.innerHTML += `
-          <div class="line ok">✓ Ready to connect.</div>
-          <div class="line" style="margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-            <a href="${esc(setup.auth_url)}" target="_top" rel="noopener noreferrer"
-               id="oauth-link"
-               style="display: inline-block; padding: 8px 14px; background: var(--accent); color: white; text-decoration: none; border-radius: var(--radius); font-weight: 500;">
-              → Sign into Dropbox
-            </a>
-            <button class="secondary" id="copy-oauth-url">Copy URL instead</button>
+          <div class="line ok">${autoCopied ? '✓ Auth URL copied to your clipboard.' : '✓ Auth URL ready.'}</div>
+          <div class="line" style="margin-top: 10px; padding: 12px; background: var(--surface-2); border: 1px solid var(--accent); border-radius: var(--radius);">
+            <div style="font-weight: 600; color: var(--text); margin-bottom: 6px;">Next steps:</div>
+            <ol style="margin: 0; padding-left: 20px; line-height: 1.8;">
+              <li>Open a new browser tab (Cmd/Ctrl+T)</li>
+              <li>${autoCopied ? 'Paste (Cmd/Ctrl+V) and press Enter' : 'Copy the URL below, paste into the new tab, press Enter'}</li>
+              <li>Sign into Dropbox and approve</li>
+              <li>Dropbox will redirect to <span class="mono" style="font-size:11px;">api.ateam-ai.com/…/dropbox/callback?code=…</span></li>
+              <li>Copy that final URL from the new tab's address bar</li>
+              <li>Come back here and paste it into the <strong>Submit</strong> box below</li>
+            </ol>
           </div>
-          <div class="line muted" style="margin-top: 6px;">
-            <strong>Button above navigates THIS tab</strong> to Dropbox. After approval
-            you'll land on <span class="mono">api.ateam-ai.com/api/integrations/dropbox/callback</span>
-            — copy that URL, come back here, paste it below.
-            <br>Or click <strong>Copy URL instead</strong> and open it in a new tab manually.
+          <div class="line" style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+            <button class="secondary" id="copy-oauth-url">${autoCopied ? 'Copy again' : 'Copy URL to clipboard'}</button>
+            <textarea id="oauth-url-display" readonly rows="2"
+              style="flex: 1; font-family: monospace; font-size: 11px; resize: none; background: var(--surface-2);"
+            >${esc(setup.auth_url)}</textarea>
           </div>
         `;
         const copyBtn = document.getElementById('copy-oauth-url');
         if (copyBtn) {
           copyBtn.addEventListener('click', async () => {
-            try {
-              await navigator.clipboard.writeText(setup.auth_url);
-              copyBtn.textContent = 'Copied ✓';
-              setTimeout(() => { copyBtn.textContent = 'Copy URL instead'; }, 2000);
-            } catch {
-              // Fallback for when clipboard API blocked in iframe
-              const ta = document.createElement('textarea');
-              ta.value = setup.auth_url;
-              document.body.appendChild(ta);
+            try { await navigator.clipboard.writeText(setup.auth_url); }
+            catch {
+              const ta = document.getElementById('oauth-url-display');
               ta.select();
               document.execCommand('copy');
-              ta.remove();
-              copyBtn.textContent = 'Copied ✓';
-              setTimeout(() => { copyBtn.textContent = 'Copy URL instead'; }, 2000);
             }
+            copyBtn.textContent = 'Copied ✓';
+            setTimeout(() => { copyBtn.textContent = 'Copy again'; }, 2000);
           });
         }
-        log.innerHTML += '<div class="line muted" style="margin-top: 6px;">Watching for connection…</div>';
+        log.innerHTML += '<div class="line muted" style="margin-top: 8px;">Watching for connection…</div>';
         renderPasteFallback(log, setup.auth_url);
 
         // 3) Poll dropbox.status — Core's /api/integrations/dropbox/callback
