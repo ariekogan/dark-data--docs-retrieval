@@ -169,6 +169,8 @@ server.tool(
       if (!cfg || !cfg.app_key) {
         return err("Dropbox app not configured — set it via the workbench UI (dropbox.app.set_config).", { code: "APP_NOT_CONFIGURED" });
       }
+      const tenant = process.env.ADAS_TENANT || process.env.TENANT || "";
+      if (!tenant) return err("No tenant context — cannot build OAuth state");
       const nonce = crypto.randomUUID();
       const { verifier, challenge } = pkcePair();
       storage.storeNonce(nonce, actor, verifier);
@@ -177,7 +179,8 @@ server.tool(
       url.searchParams.set("redirect_uri", cfg.redirect_uri);
       url.searchParams.set("response_type", "code");
       url.searchParams.set("token_access_type", "offline");
-      url.searchParams.set("state", nonce);
+      // State = {nonce}:{tenant} — Core's callback parses tenant to route to the right connector.
+      url.searchParams.set("state", `${nonce}:${tenant}`);
       url.searchParams.set("code_challenge", challenge);
       url.searchParams.set("code_challenge_method", "S256");
       url.searchParams.set("scope", "account_info.read files.metadata.read files.content.read files.content.write");
@@ -275,7 +278,10 @@ server.tool("dropbox._storeTokens", "Internal: exchange OAuth code and store tok
   { code: z.string(), state: z.string() },
   async (args) => {
     try {
-      const nonceDoc = storage.consumeNonce(String(args.state));
+      // State format is {nonce}:{tenant} (or legacy: just {nonce})
+      const stateStr = String(args.state);
+      const nonce = stateStr.includes(":") ? stateStr.split(":")[0] : stateStr;
+      const nonceDoc = storage.consumeNonce(nonce);
       if (!nonceDoc) return err("Nonce not found or expired");
       const cfg = effectiveAppConfig();
       if (!cfg) return err("Dropbox app not configured");

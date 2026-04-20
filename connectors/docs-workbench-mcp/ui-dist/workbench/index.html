@@ -232,6 +232,19 @@
           <div class="spacer"></div>
           <button id="btn-connect">Connect Dropbox →</button>
           <div id="connect-log" class="log" style="display:none;"></div>
+
+          <div id="paste-url-block" style="display:none; margin-top: 16px;">
+            <div class="field">
+              <label>After approving in Dropbox, paste the URL you landed on</label>
+              <input type="text" id="landed-url" placeholder="https://api.ateam-ai.com/api/integrations/dropbox/callback?code=...&amp;state=..." />
+              <div class="hint">
+                The browser shows a "not found" error page — that's expected.
+                Copy the <em>full URL</em> from your address bar and paste it here.
+              </div>
+            </div>
+            <button id="btn-finish-connect">Complete connection</button>
+            <div id="finish-log" class="log" style="display:none;"></div>
+          </div>
         </div>
       `;
     }
@@ -304,6 +317,7 @@
         $('#main').innerHTML = renderConnectedAppCard() + renderConnectCard();
         bindAppConfigHandlers();
         $('#btn-connect').addEventListener('click', connectDropbox);
+        $('#btn-finish-connect').addEventListener('click', finishConnect);
         return;
       }
       // Fully connected → show everything
@@ -372,20 +386,56 @@
       try {
         const res = await mcpCall('dropbox.setup', {}, 'dropbox-mcp');
         if (res?.ok === false) throw new Error(res.error || 'setup failed');
-        log.innerHTML += '<div class="line ok">✓ OAuth URL received. Opening…</div>';
+        log.innerHTML += '<div class="line ok">✓ OAuth URL received. Opening Dropbox…</div>';
         window.open(res.auth_url, '_blank', 'noopener,noreferrer,width=600,height=720');
-        log.innerHTML += '<div class="line">Waiting for Dropbox callback…</div>';
-        await pollForConnection(log);
+        log.innerHTML += '<div class="line">After you approve in the Dropbox window, copy the URL you land on and paste it below.</div>';
+        // Reveal paste-URL block + start passive polling (in case a callback endpoint exists)
+        $('#paste-url-block').style.display = 'block';
+        pollForConnection(log, 300); // 5-min passive poll
       } catch (e) {
         log.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
         btn.disabled = false;
       }
     }
 
+    async function finishConnect() {
+      const input = $('#landed-url').value.trim();
+      const log = $('#finish-log');
+      log.style.display = 'block';
+      if (!input) {
+        log.innerHTML = '<div class="line err">✗ Paste the URL first.</div>';
+        return;
+      }
+      try {
+        const u = new URL(input);
+        const code = u.searchParams.get('code');
+        const stateParam = u.searchParams.get('state');
+        if (!code || !stateParam) {
+          log.innerHTML = '<div class="line err">✗ URL missing ?code= or ?state= — did you paste the right one?</div>';
+          return;
+        }
+        log.innerHTML = '<div class="line">Exchanging code for tokens…</div>';
+        $('#btn-finish-connect').disabled = true;
+        const res = await mcpCall('dropbox._storeTokens', { code, state: stateParam }, 'dropbox-mcp');
+        if (res?.ok === false) throw new Error(res.error || 'token exchange failed');
+        log.innerHTML += `<div class="line ok">✓ Connected as ${esc(res.account_email || 'Dropbox user')}</div>`;
+        // Refresh state
+        const s = await mcpCall('dropbox.status', {}, 'dropbox-mcp');
+        state.dropbox = s;
+        await loadCorpora();
+        setTimeout(() => { renderBadge(); renderMain(); }, 800);
+      } catch (e) {
+        log.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
+        $('#btn-finish-connect').disabled = false;
+      }
+    }
+
     async function pollForConnection(logEl, maxSeconds = 120) {
+      // Passive poll — only used if a server-side callback path exists.
+      // Primary flow is the paste-URL input.
       const started = Date.now();
       while (Date.now() - started < maxSeconds * 1000) {
-        await new Promise(r => setTimeout(r, 2500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const s = await mcpCall('dropbox.status', {}, 'dropbox-mcp');
           if (s.connected) {
@@ -398,7 +448,6 @@
           }
         } catch {}
       }
-      logEl.innerHTML += '<div class="line err">✗ Timed out. If you finished in the browser, click Refresh.</div>';
     }
 
     async function disconnectDropbox() {
