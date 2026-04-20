@@ -80,6 +80,29 @@
         "command"
       ],
       "commands": []
+    },
+    {
+      "id": "mcp:browser-mcp:auth-webview",
+      "name": "Auth WebView",
+      "version": "1.2.0",
+      "type": "ui",
+      "render": {
+        "mode": "adaptive",
+        "iframeUrl": "/ui/login-webview/index.html",
+        "reactNative": {
+          "component": "AuthWebView",
+          "bundleUrl": "/api/ui-plugins/mcp%3Abrowser-mcp%3Aauth-webview/bundle.js"
+        }
+      },
+      "capabilities": {
+        "webview": true,
+        "cookies": true,
+        "haptics": true
+      },
+      "channels": [
+        "command"
+      ],
+      "commands": []
     }
   ],
   "security_contracts": [],
