@@ -44,6 +44,11 @@ class DocsIndexClient {
 }
 
 export async function indexFolder({ actor, corpus_id, path, recursive = true, use_cursor = true }) {
+  // Dropbox API requires empty string for root, not "/" — normalize.
+  if (path === "/" || path == null) path = "";
+  // Also strip trailing slash from subfolder paths ("/foo/" → "/foo")
+  else if (path.length > 1 && path.endsWith("/")) path = path.replace(/\/+$/, "");
+
   const client = new DocsIndexClient({ url: DOCS_INDEX_URL, actor });
   await client.init();
 

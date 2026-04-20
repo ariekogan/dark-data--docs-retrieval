@@ -202,10 +202,14 @@ server.tool("dropbox.disconnect", "Remove Dropbox tokens.", {}, async (args) =>
 
 // ───────── Browse / read ─────────
 
-server.tool("dropbox.list_folder", "List files/folders at path.",
+server.tool("dropbox.list_folder", "List files/folders at path. Use empty string or '/' for root.",
   { path: z.string().optional(), recursive: z.boolean().optional(), cursor: z.string().optional(), limit: z.number().int().optional() },
   async (args) => handle(args, async (actor) => {
-    const r = await dropbox.listFolder(actor, { path: args.path || "", recursive: args.recursive, cursor: args.cursor, limit: args.limit });
+    // Dropbox API quirk: root must be "" not "/". Normalize both cases + strip trailing slash.
+    let normPath = args.path || "";
+    if (normPath === "/") normPath = "";
+    else if (normPath.length > 1 && normPath.endsWith("/")) normPath = normPath.replace(/\/+$/, "");
+    const r = await dropbox.listFolder(actor, { path: normPath, recursive: args.recursive, cursor: args.cursor, limit: args.limit });
     return ok({ entries: r.entries, cursor: r.cursor, has_more: r.has_more });
   })
 );
