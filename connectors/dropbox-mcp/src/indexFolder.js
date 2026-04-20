@@ -129,6 +129,7 @@ function guessMime(p) {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".csv": "text/csv", ".json": "application/json", ".xml": "application/xml",
+    ".paper": "text/html",
   };
   return map[ext];
 }
