@@ -529,6 +529,73 @@
       "security": {
         "classification": "private"
       }
+    },
+    {
+      "id": "dropbox_list_folder",
+      "name": "dropbox.list_folder",
+      "description": "List files and folders at a Dropbox path. Use this for directory listings, 'show me files', 'what's in folder X'. Pass path='' for root, or path='/FolderName' for a subfolder. Prefer this over dropbox.search when the user wants to see directory structure.",
+      "inputs": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "recursive",
+          "type": "boolean",
+          "required": false
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "dropbox-mcp",
+        "mcp_tool": "dropbox.list_folder"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "dropbox_get_metadata",
+      "name": "dropbox.get_metadata",
+      "description": "Get metadata (size, modified time, type) for a specific Dropbox path.",
+      "inputs": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "dropbox-mcp",
+        "mcp_tool": "dropbox.get_metadata"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
     }
   ],
   "policy": {
