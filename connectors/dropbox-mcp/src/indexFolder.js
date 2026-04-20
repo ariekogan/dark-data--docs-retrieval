@@ -50,13 +50,17 @@ class DocsIndexClient {
   }
 }
 
-export async function indexFolder({ actor, corpus_id, path, recursive = true, use_cursor = true }) {
+export async function indexFolder({ tokenActor, callerActor, actor, corpus_id, path, recursive = true, use_cursor = true }) {
+  // Back-compat: old callers passed a single `actor`. Treat it as both.
+  if (!tokenActor) tokenActor = actor;
+  if (!callerActor) callerActor = actor;
   // Dropbox API requires empty string for root, not "/" — normalize.
   if (path === "/" || path == null) path = "";
   // Also strip trailing slash from subfolder paths ("/foo/" → "/foo")
   else if (path.length > 1 && path.endsWith("/")) path = path.replace(/\/+$/, "");
 
-  const client = new DocsIndexClient({ url: DOCS_INDEX_URL, actor });
+  // docs-index-mcp operations (corpus ownership, ingest) run as CALLER actor.
+  const client = new DocsIndexClient({ url: DOCS_INDEX_URL, actor: callerActor });
   await client.init();
 
   let cursor = null;
@@ -70,9 +74,10 @@ export async function indexFolder({ actor, corpus_id, path, recursive = true, us
   let hasMore = true;
 
   while (hasMore) {
+    // Dropbox API calls run as TOKEN actor (shared org account).
     const page = cursor
-      ? await dropbox.listFolder(actor, { cursor })
-      : await dropbox.listFolder(actor, { path, recursive });
+      ? await dropbox.listFolder(tokenActor, { cursor })
+      : await dropbox.listFolder(tokenActor, { path, recursive });
     cursor = page.cursor;
     hasMore = Boolean(page.has_more);
 
@@ -101,11 +106,11 @@ export async function indexFolder({ actor, corpus_id, path, recursive = true, us
         if (needsExport) {
           const options = entry.export_info.export_options || [];
           const format = options.includes("html") ? "html" : (options[0] || "html");
-          const r = await dropbox.exportFile(actor, { path: entry.path_lower, format });
+          const r = await dropbox.exportFile(tokenActor, { path: entry.path_lower, format });
           buffer = r.buffer;
           effectiveMime = format === "markdown" ? "text/markdown" : "text/html";
         } else {
-          const r = await dropbox.download(actor, { path: entry.path_lower });
+          const r = await dropbox.download(tokenActor, { path: entry.path_lower });
           buffer = r.buffer;
         }
         const content_base64 = buffer.toString("base64");

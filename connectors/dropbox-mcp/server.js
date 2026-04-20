@@ -54,13 +54,29 @@ function effectiveAppConfig() {
   return { app_key, app_secret, redirect_uri, source };
 }
 
-function getActor(args) {
-  if (SHARED_MODE) return SHARED_ACTOR_ID;
+// Two distinct actor concepts:
+//   tokenActor  — whose Dropbox OAuth tokens to use. In SHARED_MODE this is
+//                 always _tenant_shared (one org-wide Dropbox account).
+//   callerActor — who is invoking the tool. Used for corpus ownership checks
+//                 against docs-index-mcp, which owns rows per-user. Even in
+//                 SHARED_MODE, the CORPUS is owned by the actual user.
+function getTokenActor() {
+  return SHARED_MODE ? SHARED_ACTOR_ID : getCallerActor();
+}
+function getCallerActor(args) {
   const id = process.env.ADAS_ACTOR_ID || args?._adas_actor;
   if (!id || SYSTEM_ACTOR_IDS.has(id)) {
+    // For shared-mode dropbox-only ops (setup/status), a missing caller is fine — fall back.
+    if (SHARED_MODE) return SHARED_ACTOR_ID;
     throw new Error(`Dropbox tools require a real authenticated actor — got "${id || "none"}".`);
   }
   return id;
+}
+// Back-compat alias — most existing tools only needed one actor (the token one).
+function getActor(args) {
+  // If caller passes an explicit actor, keep tracking it for logs, but the
+  // actual Dropbox calls run as tokenActor.
+  return getTokenActor(args);
 }
 
 function ok(p) { return { content: [{ type: "text", text: JSON.stringify({ ok: true, ...p }) }] }; }
@@ -270,10 +286,27 @@ server.tool("dropbox.create_folder", "Create folder.",
 
 server.tool("dropbox.index_folder", "Walk Dropbox folder, ingest supported files into docs-index corpus.",
   { corpus_id: z.string(), path: z.string().optional(), recursive: z.boolean().optional(), use_cursor: z.boolean().optional() },
-  async (args) => handle(args, async (actor) => {
-    const r = await indexFolder({ actor, corpus_id: args.corpus_id, path: args.path || "", recursive: args.recursive !== false, use_cursor: args.use_cursor !== false });
-    return ok(r);
-  })
+  async (args) => {
+    // Index folder needs BOTH actors:
+    //   tokenActor → Dropbox API (shared org account)
+    //   callerActor → docs-index-mcp corpus ownership check (real user UUID)
+    try {
+      const tokenActor = getTokenActor();
+      const callerActor = getCallerActor(args);
+      const r = await indexFolder({
+        tokenActor,
+        callerActor,
+        corpus_id: args.corpus_id,
+        path: args.path || "",
+        recursive: args.recursive !== false,
+        use_cursor: args.use_cursor !== false,
+      });
+      return ok(r);
+    } catch (e) {
+      if (e instanceof DropboxAuthRequired) return authRequired(args?._adas_actor);
+      return err(e.message);
+    }
+  }
 );
 
 // ───────── Internal: OAuth callback (invoked by Core's /api/integrations/dropbox/callback) ─────────
