@@ -540,6 +540,7 @@
         try {
           const res = await mcpCall('docs.corpus.create', {
             name, source_type: 'dropbox', source_config: { path, recursive: true },
+            shared: true,  // shared-mode Dropbox → corpus is tenant-wide
           }, 'docs-index-mcp');
           if (res?.ok === false) throw new Error(res.error || 'create failed');
           modal.remove();
