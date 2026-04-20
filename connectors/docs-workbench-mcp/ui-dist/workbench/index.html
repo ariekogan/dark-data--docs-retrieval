@@ -142,11 +142,16 @@
           resolve: (r) => { clearTimeout(timeout); resolve(r); },
           reject:  (e) => { clearTimeout(timeout); reject(e); },
         });
+        // Core has two mcpProxy impls: one reads `args`, the other reads
+        // `arguments`. Send both keys so the call works regardless of which
+        // one is active. (Observed: solution connectors got args stripped
+        // when only `args` was sent — set_config worked by coincidence of
+        // empty-args handling, but anything with real args failed.)
         window.parent.postMessage({
           source: "adas-plugin",
           message: {
             action: "mcp-call",
-            payload: { requestId, toolName: "cp.fe_api", args: { method: "mcpProxy", params: { connectorId, tool, args } } },
+            payload: { requestId, toolName: "cp.fe_api", args: { method: "mcpProxy", params: { connectorId, tool, args, arguments: args } } },
           },
         }, "*");
       });
