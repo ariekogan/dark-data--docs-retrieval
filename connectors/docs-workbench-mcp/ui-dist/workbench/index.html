@@ -377,6 +377,34 @@
       }
     }
 
+    // Automatic OAuth completion: oauth-return.html (same origin) posts back to us.
+    let _oauthListener = null;
+    function installOAuthListener(logEl) {
+      if (_oauthListener) window.removeEventListener('message', _oauthListener);
+      _oauthListener = async (ev) => {
+        if (ev.origin !== window.location.origin) return;
+        const d = ev.data || {};
+        if (d.source !== 'dropbox-oauth-return') return;
+        if (!d.code || !d.state) { logEl.innerHTML += '<div class="line err">✗ Popup returned without code/state.</div>'; return; }
+        logEl.innerHTML += '<div class="line ok">✓ Received code from Dropbox. Exchanging for tokens…</div>';
+        try {
+          const res = await mcpCall('dropbox._storeTokens', { code: d.code, state: d.state }, 'dropbox-mcp');
+          if (res?.ok === false) throw new Error(res.error || 'token exchange failed');
+          logEl.innerHTML += `<div class="line ok">✓ Connected as ${esc(res.account_email || 'Dropbox user')}</div>`;
+          const s = await mcpCall('dropbox.status', {}, 'dropbox-mcp');
+          state.dropbox = s;
+          await loadCorpora();
+          setTimeout(() => { renderBadge(); renderMain(); }, 600);
+        } catch (e) {
+          logEl.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
+        } finally {
+          window.removeEventListener('message', _oauthListener);
+          _oauthListener = null;
+        }
+      };
+      window.addEventListener('message', _oauthListener);
+    }
+
     async function connectDropbox() {
       const btn = $('#btn-connect');
       const log = $('#connect-log');
@@ -387,11 +415,15 @@
         const res = await mcpCall('dropbox.setup', {}, 'dropbox-mcp');
         if (res?.ok === false) throw new Error(res.error || 'setup failed');
         log.innerHTML += '<div class="line ok">✓ OAuth URL received. Opening Dropbox…</div>';
-        window.open(res.auth_url, '_blank', 'noopener,noreferrer,width=600,height=720');
-        log.innerHTML += '<div class="line">After you approve in the Dropbox window, copy the URL you land on and paste it below.</div>';
-        // Reveal paste-URL block + start passive polling (in case a callback endpoint exists)
+        // Install automatic-completion listener BEFORE opening the popup.
+        installOAuthListener(log);
+        // Keep `opener` so the popup can postMessage back (no noopener).
+        window.open(res.auth_url, 'dropbox_oauth', 'width=600,height=720');
+        log.innerHTML += '<div class="line">Waiting for Dropbox… (the popup will close automatically on success)</div>';
+        log.innerHTML += '<div class="line muted">If auto-return fails, paste the URL below instead.</div>';
+        // Keep paste-URL fallback visible
         $('#paste-url-block').style.display = 'block';
-        pollForConnection(log, 300); // 5-min passive poll
+        pollForConnection(log, 300);
       } catch (e) {
         log.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
         btn.disabled = false;
