@@ -19,7 +19,8 @@
         "description": "Entry point. Decomposes questions, runs targeted retrieval, hands off to contract-analyst for deep reasoning.",
         "connectors": [
           "dropbox-mcp",
-          "docs-index-mcp"
+          "docs-index-mcp",
+          "browser-mcp"
         ]
       },
       {
@@ -60,6 +61,10 @@
       {
         "id": "docs-workbench-mcp",
         "required": true
+      },
+      {
+        "id": "browser-mcp",
+        "required": true
       }
     ],
     "ui_plugins": [
@@ -77,6 +82,29 @@
           "command"
         ],
         "commands": []
+      },
+      {
+        "id": "mcp:browser-mcp:auth-webview",
+        "name": "Auth WebView",
+        "version": "1.2.0",
+        "type": "ui",
+        "render": {
+          "mode": "adaptive",
+          "iframeUrl": "/ui/login-webview/index.html",
+          "reactNative": {
+            "component": "AuthWebView",
+            "bundleUrl": "/api/ui-plugins/mcp%3Abrowser-mcp%3Aauth-webview/bundle.js"
+          }
+        },
+        "capabilities": {
+          "webview": true,
+          "cookies": true,
+          "haptics": true
+        },
+        "channels": [
+          "command"
+        ],
+        "commands": []
       }
     ],
     "security_contracts": [],
@@ -90,7 +118,8 @@
           "DROPBOX_OAUTH_REDIRECT_URI": "https://api.ateam-ai.com/api/integrations/dropbox/callback"
         }
       }
-    ]
+    ],
+    "_force_redeploy": true
   },
   "skills": [
     {
