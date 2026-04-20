@@ -374,48 +374,63 @@
       log.style.display = 'block';
       log.innerHTML = '<div class="line">Requesting OAuth URL…</div>';
       btn.disabled = true;
-
-      // CRITICAL: open the popup SYNCHRONOUSLY here, inside the click handler,
-      // or Chrome's popup blocker will kill it (the await below breaks the
-      // user-gesture chain). We open about:blank first and set location
-      // after we have the auth URL.
-      const popup = window.open('about:blank', 'dropbox_oauth',
-        'width=560,height=720,menubar=no,toolbar=no,location=yes,status=yes');
-      if (!popup) {
-        log.innerHTML += '<div class="line err">✗ Popup blocked. Allow popups for this site in your browser settings, then try again. Or use the paste-URL fallback below.</div>';
-        btn.disabled = false;
-      }
-
       try {
-        // 1) Get the auth URL from dropbox-mcp (it builds the nonce + PKCE challenge
-        //    and stashes the verifier keyed by the state).
+        // 1) Get the auth URL from dropbox-mcp (builds nonce + PKCE challenge
+        //    and stashes verifier keyed by state).
         const setup = await mcpCall('dropbox.setup', {}, 'dropbox-mcp');
-        // [DEBUG] show what setup returned
-        log.innerHTML += `<div class="line muted">[debug] setup returned: ${esc(JSON.stringify(setup).slice(0, 400))}</div>`;
         console.log('[workbench][dropbox.setup-response]', setup);
         if (!setup || setup.ok === false || !setup.auth_url) {
-          throw new Error('dropbox.setup returned unusable response: ' + JSON.stringify(setup).slice(0, 200));
+          throw new Error('dropbox.setup failed: ' + JSON.stringify(setup).slice(0, 200));
         }
-        log.innerHTML += '<div class="line ok">✓ Auth URL ready. Navigating popup to Dropbox…</div>';
 
-        // 2) Navigate the already-opened popup to Dropbox's OAuth URL.
-        //    Dropbox redirects to our registered callback
-        //    (https://api.ateam-ai.com/api/integrations/dropbox/callback) which
-        //    is served by Core and already calls dropbox._storeTokens with
-        //    code + state. If the popup was blocked earlier, the paste-URL
-        //    fallback is always rendered so the user can still complete it.
-        if (popup && !popup.closed) {
-          try { popup.location.href = setup.auth_url; } catch {}
-          log.innerHTML += '<div class="line">Sign into Dropbox in the popup and approve.</div>';
-          log.innerHTML += '<div class="line muted">Watching for connection…</div>';
-        } else {
-          log.innerHTML += '<div class="line muted">Popup unavailable — use the paste-URL fallback below, or open this link manually: <a href="' + esc(setup.auth_url) + '" target="_blank" style="color: var(--accent);">Dropbox OAuth</a></div>';
+        // 2) Render a big link the user clicks directly — this is a direct
+        //    user gesture on an anchor with target=_blank, which Chrome allows
+        //    even inside sandboxed iframes (provided allow-popups-to-escape-
+        //    sandbox is set on the frame). No programmatic window.open().
+        log.innerHTML = ''; // clear "Requesting…"
+        log.innerHTML += `
+          <div class="line ok">✓ Ready to connect.</div>
+          <div class="line" style="margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <a href="${esc(setup.auth_url)}" target="_top" rel="noopener noreferrer"
+               id="oauth-link"
+               style="display: inline-block; padding: 8px 14px; background: var(--accent); color: white; text-decoration: none; border-radius: var(--radius); font-weight: 500;">
+              → Sign into Dropbox
+            </a>
+            <button class="secondary" id="copy-oauth-url">Copy URL instead</button>
+          </div>
+          <div class="line muted" style="margin-top: 6px;">
+            <strong>Button above navigates THIS tab</strong> to Dropbox. After approval
+            you'll land on <span class="mono">api.ateam-ai.com/api/integrations/dropbox/callback</span>
+            — copy that URL, come back here, paste it below.
+            <br>Or click <strong>Copy URL instead</strong> and open it in a new tab manually.
+          </div>
+        `;
+        const copyBtn = document.getElementById('copy-oauth-url');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(setup.auth_url);
+              copyBtn.textContent = 'Copied ✓';
+              setTimeout(() => { copyBtn.textContent = 'Copy URL instead'; }, 2000);
+            } catch {
+              // Fallback for when clipboard API blocked in iframe
+              const ta = document.createElement('textarea');
+              ta.value = setup.auth_url;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              ta.remove();
+              copyBtn.textContent = 'Copied ✓';
+              setTimeout(() => { copyBtn.textContent = 'Copy URL instead'; }, 2000);
+            }
+          });
         }
+        log.innerHTML += '<div class="line muted" style="margin-top: 6px;">Watching for connection…</div>';
         renderPasteFallback(log, setup.auth_url);
 
-        // 3) Poll status — Core's /api/integrations/dropbox/callback calls
-        //    dropbox._storeTokens when Dropbox redirects back, which flips
-        //    dropbox.status to connected.
+        // 3) Poll dropbox.status — Core's /api/integrations/dropbox/callback
+        //    endpoint calls dropbox._storeTokens automatically when Dropbox
+        //    redirects to it, flipping dropbox.status to connected.
         pollForConnection(log, 300);
       } catch (e) {
         log.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
