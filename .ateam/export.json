@@ -990,7 +990,7 @@
         "model": "claude-sonnet-4-20250514",
         "temperature": 0.2,
         "rv2": {
-          "max_iterations": 15,
+          "max_iterations": 30,
           "iteration_timeout_ms": 45000,
           "allow_parallel_tools": false
         },
