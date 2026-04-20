@@ -224,27 +224,14 @@
     }
 
     function renderConnectCard() {
-      // Step 2: user-side Dropbox OAuth connection
       return `
         <div class="card">
           <h2>Step 2 — Connect Dropbox</h2>
-          <p class="muted">Connect your organization's Dropbox account. Shared by all users in the tenant.</p>
+          <p class="muted">The Auth WebView panel will open — sign into Dropbox there and approve.
+            Tokens come back to this workbench automatically.</p>
           <div class="spacer"></div>
           <button id="btn-connect">Connect Dropbox →</button>
           <div id="connect-log" class="log" style="display:none;"></div>
-
-          <div id="paste-url-block" style="display:none; margin-top: 16px;">
-            <div class="field">
-              <label>After approving in Dropbox, paste the URL you landed on</label>
-              <input type="text" id="landed-url" placeholder="https://api.ateam-ai.com/api/integrations/dropbox/callback?code=...&amp;state=..." />
-              <div class="hint">
-                The browser shows a "not found" error page — that's expected.
-                Copy the <em>full URL</em> from your address bar and paste it here.
-              </div>
-            </div>
-            <button id="btn-finish-connect">Complete connection</button>
-            <div id="finish-log" class="log" style="display:none;"></div>
-          </div>
         </div>
       `;
     }
@@ -317,7 +304,6 @@
         $('#main').innerHTML = renderConnectedAppCard() + renderConnectCard();
         bindAppConfigHandlers();
         $('#btn-connect').addEventListener('click', connectDropbox);
-        $('#btn-finish-connect').addEventListener('click', finishConnect);
         return;
       }
       // Fully connected → show everything
@@ -377,34 +363,6 @@
       }
     }
 
-    // Automatic OAuth completion: oauth-return.html (same origin) posts back to us.
-    let _oauthListener = null;
-    function installOAuthListener(logEl) {
-      if (_oauthListener) window.removeEventListener('message', _oauthListener);
-      _oauthListener = async (ev) => {
-        if (ev.origin !== window.location.origin) return;
-        const d = ev.data || {};
-        if (d.source !== 'dropbox-oauth-return') return;
-        if (!d.code || !d.state) { logEl.innerHTML += '<div class="line err">✗ Popup returned without code/state.</div>'; return; }
-        logEl.innerHTML += '<div class="line ok">✓ Received code from Dropbox. Exchanging for tokens…</div>';
-        try {
-          const res = await mcpCall('dropbox._storeTokens', { code: d.code, state: d.state }, 'dropbox-mcp');
-          if (res?.ok === false) throw new Error(res.error || 'token exchange failed');
-          logEl.innerHTML += `<div class="line ok">✓ Connected as ${esc(res.account_email || 'Dropbox user')}</div>`;
-          const s = await mcpCall('dropbox.status', {}, 'dropbox-mcp');
-          state.dropbox = s;
-          await loadCorpora();
-          setTimeout(() => { renderBadge(); renderMain(); }, 600);
-        } catch (e) {
-          logEl.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
-        } finally {
-          window.removeEventListener('message', _oauthListener);
-          _oauthListener = null;
-        }
-      };
-      window.addEventListener('message', _oauthListener);
-    }
-
     async function connectDropbox() {
       const btn = $('#btn-connect');
       const log = $('#connect-log');
@@ -412,53 +370,36 @@
       log.innerHTML = '<div class="line">Requesting OAuth URL…</div>';
       btn.disabled = true;
       try {
-        const res = await mcpCall('dropbox.setup', {}, 'dropbox-mcp');
-        if (res?.ok === false) throw new Error(res.error || 'setup failed');
-        log.innerHTML += '<div class="line ok">✓ OAuth URL received. Opening Dropbox…</div>';
-        // Install automatic-completion listener BEFORE opening the popup.
-        installOAuthListener(log);
-        // Keep `opener` so the popup can postMessage back (no noopener).
-        window.open(res.auth_url, 'dropbox_oauth', 'width=600,height=720');
-        log.innerHTML += '<div class="line">Waiting for Dropbox… (the popup will close automatically on success)</div>';
-        log.innerHTML += '<div class="line muted">If auto-return fails, paste the URL below instead.</div>';
-        // Keep paste-URL fallback visible
-        $('#paste-url-block').style.display = 'block';
+        // 1) Get the auth URL from dropbox-mcp (it builds the nonce + PKCE challenge
+        //    and stashes the verifier keyed by the state).
+        const setup = await mcpCall('dropbox.setup', {}, 'dropbox-mcp');
+        if (setup?.ok === false) throw new Error(setup.error || 'setup failed');
+        log.innerHTML += '<div class="line ok">✓ Auth URL ready. Opening the Auth WebView…</div>';
+
+        // 2) Hand the URL to the platform browser-mcp's generic OAuth flow. It
+        //    opens the Auth WebView panel (user signs in remotely), watches the
+        //    URL, and when it hits our registered redirect — even if that URL
+        //    404s — extracts ?code= and ?state= and calls dropbox._storeTokens
+        //    on dropbox-mcp directly. No code/state touches the LLM.
+        const openRes = await mcpCall('web.openOAuthFlow', {
+          auth_url: setup.auth_url,
+          redirect_url_pattern: 'dropbox/callback',
+          callback_tool: 'dropbox._storeTokens',
+          callback_connector: 'dropbox-mcp',
+          extract_params: ['code', 'state'],
+          label: 'Dropbox',
+        }, 'browser-mcp');
+        if (openRes?.ok === false) throw new Error(openRes.error || 'web.openOAuthFlow failed');
+
+        log.innerHTML += '<div class="line">Sign into Dropbox in the Auth WebView panel that just opened.</div>';
+        log.innerHTML += '<div class="line muted">Watching for connection…</div>';
+
+        // 3) Poll status — the plugin will call dropbox._storeTokens when OAuth
+        //    completes, which flips dropbox.status to connected.
         pollForConnection(log, 300);
       } catch (e) {
         log.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
         btn.disabled = false;
-      }
-    }
-
-    async function finishConnect() {
-      const input = $('#landed-url').value.trim();
-      const log = $('#finish-log');
-      log.style.display = 'block';
-      if (!input) {
-        log.innerHTML = '<div class="line err">✗ Paste the URL first.</div>';
-        return;
-      }
-      try {
-        const u = new URL(input);
-        const code = u.searchParams.get('code');
-        const stateParam = u.searchParams.get('state');
-        if (!code || !stateParam) {
-          log.innerHTML = '<div class="line err">✗ URL missing ?code= or ?state= — did you paste the right one?</div>';
-          return;
-        }
-        log.innerHTML = '<div class="line">Exchanging code for tokens…</div>';
-        $('#btn-finish-connect').disabled = true;
-        const res = await mcpCall('dropbox._storeTokens', { code, state: stateParam }, 'dropbox-mcp');
-        if (res?.ok === false) throw new Error(res.error || 'token exchange failed');
-        log.innerHTML += `<div class="line ok">✓ Connected as ${esc(res.account_email || 'Dropbox user')}</div>`;
-        // Refresh state
-        const s = await mcpCall('dropbox.status', {}, 'dropbox-mcp');
-        state.dropbox = s;
-        await loadCorpora();
-        setTimeout(() => { renderBadge(); renderMain(); }, 800);
-      } catch (e) {
-        log.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
-        $('#btn-finish-connect').disabled = false;
       }
     }
 
