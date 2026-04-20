@@ -104,8 +104,11 @@ export async function indexFolder({ tokenActor, callerActor, actor, corpus_id, p
         let buffer;
         let effectiveMime = guessMime(entry.path_lower);
         if (needsExport) {
+          // Prefer MARKDOWN for Paper/Google Docs — HTML exports from Dropbox
+          // Paper come back as a shell with CSS/JS and near-empty body text,
+          // which our HTML stripper reduces to "". Markdown is clean content.
           const options = entry.export_info.export_options || [];
-          const format = options.includes("html") ? "html" : (options[0] || "html");
+          const format = options.includes("markdown") ? "markdown" : (options[0] || "html");
           const r = await dropbox.exportFile(tokenActor, { path: entry.path_lower, format });
           buffer = r.buffer;
           effectiveMime = format === "markdown" ? "text/markdown" : "text/html";

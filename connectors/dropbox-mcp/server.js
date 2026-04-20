@@ -293,17 +293,71 @@ server.tool("dropbox.index_folder", "Walk Dropbox folder, ingest supported files
     try {
       const tokenActor = getTokenActor();
       const callerActor = getCallerActor(args);
+      // Normalize path at entry: Dropbox API wants empty string for root.
+      let normalizedPath = args.path;
+      if (!normalizedPath || normalizedPath === "/") normalizedPath = "";
+      else if (normalizedPath.length > 1 && normalizedPath.endsWith("/")) {
+        normalizedPath = normalizedPath.replace(/\/+$/, "");
+      }
       const r = await indexFolder({
         tokenActor,
         callerActor,
         corpus_id: args.corpus_id,
-        path: args.path || "",
+        path: normalizedPath,
         recursive: args.recursive !== false,
         use_cursor: args.use_cursor !== false,
       });
       return ok(r);
     } catch (e) {
       if (e instanceof DropboxAuthRequired) return authRequired(args?._adas_actor);
+      return err(e.message);
+    }
+  }
+);
+
+// Debug tool: export a single .paper file and return the first N chars of raw + stripped content.
+server.tool("dropbox.debug.export_preview",
+  "Diagnostic: export a single file (path), return preview of raw bytes (first 500 chars as UTF-8) + stripped text.",
+  { path: z.string(), format: z.enum(["html", "markdown"]).optional() },
+  async (args) => {
+    try {
+      const actor = getTokenActor();
+      const meta = await dropbox.getMetadata(actor, { path: args.path });
+      const needsExport = meta.is_downloadable === false && meta.export_info;
+      let buffer, mode;
+      if (needsExport) {
+        const options = meta.export_info.export_options || [];
+        const fmt = args.format || (options.includes("markdown") ? "markdown" : "html");
+        const r = await dropbox.exportFile(actor, { path: args.path, format: fmt });
+        buffer = r.buffer;
+        mode = `export(${fmt})`;
+      } else {
+        const r = await dropbox.download(actor, { path: args.path });
+        buffer = r.buffer;
+        mode = "download";
+      }
+      const raw = buffer.toString("utf8");
+      const rawPreview = raw.slice(0, 500);
+      // naive html strip for preview:
+      const stripped = raw
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return ok({
+        path: args.path,
+        mode,
+        is_downloadable: meta.is_downloadable !== false,
+        export_options: meta.export_info?.export_options || null,
+        size_bytes: buffer.length,
+        raw_len: raw.length,
+        stripped_len: stripped.length,
+        raw_preview: rawPreview,
+        stripped_preview: stripped.slice(0, 500),
+      });
+    } catch (e) {
       return err(e.message);
     }
   }
