@@ -384,37 +384,72 @@
         if (!setup || setup.ok === false || !setup.auth_url) {
           throw new Error('dropbox.setup returned unusable response: ' + JSON.stringify(setup).slice(0, 200));
         }
-        log.innerHTML += '<div class="line ok">✓ Auth URL ready. Opening the Auth WebView…</div>';
+        log.innerHTML += '<div class="line ok">✓ Auth URL ready. Opening Dropbox sign-in…</div>';
 
-        // 2) Hand the URL to the platform browser-mcp's generic OAuth flow. It
-        //    opens the Auth WebView panel (user signs in remotely), watches the
-        //    URL, and when it hits our registered redirect — even if that URL
-        //    404s — extracts ?code= and ?state= and calls dropbox._storeTokens
-        //    on dropbox-mcp directly. No code/state touches the LLM.
-        const openRes = await mcpCall('web.openOAuthFlow', {
-          auth_url: setup.auth_url,
-          redirect_url_pattern: 'dropbox/callback',
-          callback_tool: 'dropbox._storeTokens',
-          callback_connector: 'dropbox-mcp',
-          extract_params: ['code', 'state'],
-          label: 'Dropbox',
-        }, 'browser-mcp');
-        // [DEBUG] full response shape so we can see if _ui_command is present.
-        const openResDump = JSON.stringify(openRes).slice(0, 600);
-        console.log('[workbench][openOAuthFlow-response]', openRes);
-        log.innerHTML += `<div class="line muted">[debug] response: ${esc(openResDump)}</div>`;
-        if (openRes?.ok === false) throw new Error(openRes.error || 'web.openOAuthFlow failed');
-
-        log.innerHTML += '<div class="line">Sign into Dropbox in the Auth WebView panel that just opened.</div>';
+        // 2) Open the OAuth URL in a popup window. The user signs into Dropbox
+        //    there. Dropbox redirects to our registered callback
+        //    (https://api.ateam-ai.com/api/integrations/dropbox/callback) which
+        //    is served by Core and already calls dropbox._storeTokens with the
+        //    code + state. The popup closes/lands on that URL; we don't need
+        //    to inspect its contents.
+        const popup = window.open(setup.auth_url, 'dropbox_oauth',
+          'width=560,height=720,menubar=no,toolbar=no,location=yes,status=yes');
+        if (!popup) {
+          log.innerHTML += '<div class="line err">✗ Popup blocked. Allow popups for this site and try again, or use the paste-URL fallback below.</div>';
+          renderPasteFallback(log, setup.auth_url);
+          btn.disabled = false;
+          return;
+        }
+        log.innerHTML += '<div class="line">Sign into Dropbox in the popup and approve.</div>';
         log.innerHTML += '<div class="line muted">Watching for connection…</div>';
+        renderPasteFallback(log, setup.auth_url);
 
-        // 3) Poll status — the plugin will call dropbox._storeTokens when OAuth
-        //    completes, which flips dropbox.status to connected.
+        // 3) Poll status — Core's /api/integrations/dropbox/callback calls
+        //    dropbox._storeTokens when Dropbox redirects back, which flips
+        //    dropbox.status to connected.
         pollForConnection(log, 300);
       } catch (e) {
         log.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
         btn.disabled = false;
       }
+    }
+
+    // Paste-URL fallback: user copies the redirect URL out of the popup's
+    // address bar (after Dropbox approval) and pastes it here. We extract
+    // code + state and call dropbox._storeTokens directly.
+    function renderPasteFallback(logEl, authUrl) {
+      if (document.getElementById('paste-fallback')) return; // already rendered
+      const holder = document.createElement('div');
+      holder.id = 'paste-fallback';
+      holder.style.cssText = 'margin-top: 10px; padding: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);';
+      holder.innerHTML = `
+        <div class="muted" style="margin-bottom: 6px;">
+          If the popup didn't redirect back automatically, paste the URL from the popup's address bar (starts with <span class="mono">https://api.ateam-ai.com/api/integrations/dropbox/callback</span>):
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="paste-url" placeholder="https://api.ateam-ai.com/api/integrations/dropbox/callback?code=…&state=…" style="flex:1;" />
+          <button id="paste-submit" class="secondary">Submit</button>
+        </div>
+      `;
+      logEl.parentElement.insertBefore(holder, logEl.nextSibling);
+      document.getElementById('paste-submit').addEventListener('click', async () => {
+        const raw = document.getElementById('paste-url').value.trim();
+        if (!raw) return;
+        try {
+          const u = new URL(raw);
+          const code = u.searchParams.get('code');
+          const state = u.searchParams.get('state');
+          if (!code || !state) throw new Error('URL missing code or state');
+          logEl.innerHTML += '<div class="line">Submitting code…</div>';
+          const r = await mcpCall('dropbox._storeTokens', { code, state }, 'dropbox-mcp');
+          if (r?.ok === false) throw new Error(r.error || 'token exchange failed');
+          logEl.innerHTML += `<div class="line ok">✓ Connected as ${esc(r.account_email || 'Dropbox user')}</div>`;
+          holder.remove();
+          await refreshLive();
+        } catch (e) {
+          logEl.innerHTML += `<div class="line err">✗ ${esc(e.message)}</div>`;
+        }
+      });
     }
 
     async function pollForConnection(logEl, maxSeconds = 120) {
