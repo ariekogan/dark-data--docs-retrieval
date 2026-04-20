@@ -389,6 +389,10 @@
           extract_params: ['code', 'state'],
           label: 'Dropbox',
         }, 'browser-mcp');
+        // [DEBUG] full response shape so we can see if _ui_command is present.
+        const openResDump = JSON.stringify(openRes).slice(0, 600);
+        console.log('[workbench][openOAuthFlow-response]', openRes);
+        log.innerHTML += `<div class="line muted">[debug] response: ${esc(openResDump)}</div>`;
         if (openRes?.ok === false) throw new Error(openRes.error || 'web.openOAuthFlow failed');
 
         log.innerHTML += '<div class="line">Sign into Dropbox in the Auth WebView panel that just opened.</div>';
