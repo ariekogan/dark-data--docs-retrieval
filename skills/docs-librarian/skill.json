@@ -4,9 +4,12 @@
   "description": "Entry point. Decomposes questions, runs targeted retrieval, handles simple cases inline; hands off to contract-analyst for complex multi-hop reasoning.",
   "version": "0.3.0",
   "phase": "TOOL_DEFINITION",
-  "connectors": ["dropbox-mcp", "docs-index-mcp"],
+  "connectors": [
+    "dropbox-mcp",
+    "docs-index-mcp"
+  ],
   "problem": {
-    "statement": "Users ask questions about indexed document corpora \u2014 contracts, handbooks, specs. Questions range from simple single-fact lookups to multi-hop analytical reasoning spanning several documents. The librarian decomposes questions, runs the right retrieval strategy, and routes to the analyst when the question requires deep reasoning.",
+    "statement": "Users ask questions about indexed document corpora — contracts, handbooks, specs. Questions range from simple single-fact lookups to multi-hop analytical reasoning spanning several documents. The librarian decomposes questions, runs the right retrieval strategy, and routes to the analyst when the question requires deep reasoning.",
     "goals": [
       "Resolve simple factoid questions inline with exact citations",
       "For multi-hop or cross-document questions: decompose, gather retrieval material, hand off to contract-analyst",
@@ -16,7 +19,7 @@
   },
   "role": {
     "name": "Docs Librarian",
-    "persona": "You are a precise research librarian for technical and legal documents. Two modes: (1) SIMPLE requests \u2014 corpus management, Dropbox ingestion, or single-fact lookups with one clear answer in one searchable spot \u2014 handle yourself with dropbox.* and docs.* tools and reply directly. (2) COMPLEX requests \u2014 multi-part questions, cross-document comparison, chain-of-liability, reference resolution \u2014 decompose into 2-5 sub-queries, run docs.search / docs.neighbor_chunks / docs.list_sections to assemble a research dossier, then hand off to contract-analyst with the dossier. You do retrieval strategy, not deep interpretation. When in doubt whether a question is complex, lean toward handoff. Never invent citations.",
+    "persona": "You are a precise research librarian for technical and legal documents. Two modes: (1) SIMPLE requests — corpus management, Dropbox ingestion, or single-fact lookups with one clear answer in one searchable spot — handle yourself with dropbox.* and docs.* tools and reply directly. (2) COMPLEX requests — multi-part questions, cross-document comparison, chain-of-liability, reference resolution — decompose into 2-5 sub-queries, run docs.search / docs.neighbor_chunks / docs.list_sections to assemble a research dossier, then hand off to contract-analyst with the dossier. You do retrieval strategy, not deep interpretation. When in doubt whether a question is complex, lean toward handoff. Never invent citations.",
     "goals": [
       "Decompose multi-part questions before searching",
       "Use heading_prefix and file_id filters to scope retrieval",
@@ -29,47 +32,540 @@
       "Do not guess at clause interpretations",
       "Do not upload, delete, or modify content without explicit user confirmation"
     ],
-    "communication_style": { "tone": "neutral", "verbosity": "terse" }
+    "communication_style": {
+      "tone": "neutral",
+      "verbosity": "terse"
+    }
   },
   "tools": [
-    { "id": "dropbox_setup", "id_status": "permanent", "name": "dropbox.setup", "description": "Start Dropbox OAuth flow.", "inputs": [], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "dropbox-mcp", "mcp_tool": "dropbox.setup" }, "policy": { "allowed": "always" }, "security": { "classification": "public" } },
-    { "id": "dropbox_status", "id_status": "permanent", "name": "dropbox.status", "description": "Is Dropbox connected?", "inputs": [], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "dropbox-mcp", "mcp_tool": "dropbox.status" }, "policy": { "allowed": "always" }, "security": { "classification": "public" } },
-    { "id": "dropbox_search", "id_status": "permanent", "name": "dropbox.search", "description": "Search filenames/content in Dropbox.", "inputs": [{ "name": "query", "type": "string", "required": true }, { "name": "path", "type": "string", "required": false }, { "name": "max_results", "type": "number", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "dropbox-mcp", "mcp_tool": "dropbox.search" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "dropbox_index_folder", "id_status": "permanent", "name": "dropbox.index_folder", "description": "Walk Dropbox folder, ingest supported files into a corpus. Resumable.", "inputs": [{ "name": "corpus_id", "type": "string", "required": true }, { "name": "path", "type": "string", "required": false }, { "name": "recursive", "type": "boolean", "required": false }, { "name": "use_cursor", "type": "boolean", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "dropbox-mcp", "mcp_tool": "dropbox.index_folder" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "dropbox_upload", "id_status": "permanent", "name": "dropbox.upload", "description": "Upload file to Dropbox (base64). Requires confirmation.", "inputs": [{ "name": "path", "type": "string", "required": true }, { "name": "content_base64", "type": "string", "required": true }, { "name": "mode", "type": "string", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "dropbox-mcp", "mcp_tool": "dropbox.upload" }, "policy": { "allowed": "with_approval" }, "security": { "classification": "private" } },
-    { "id": "docs_corpus_create", "id_status": "permanent", "name": "docs.corpus.create", "description": "Create a corpus.", "inputs": [{ "name": "name", "type": "string", "required": true }, { "name": "source_type", "type": "string", "required": false }, { "name": "source_config", "type": "object", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.corpus.create" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_corpus_list", "id_status": "permanent", "name": "docs.corpus.list", "description": "List corpora.", "inputs": [], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.corpus.list" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_corpus_delete", "id_status": "permanent", "name": "docs.corpus.delete", "description": "Delete a corpus (destructive).", "inputs": [{ "name": "corpus_id", "type": "string", "required": true }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.corpus.delete" }, "policy": { "allowed": "with_approval" }, "security": { "classification": "private" } },
-    { "id": "docs_stats", "id_status": "permanent", "name": "docs.stats", "description": "Corpus counts.", "inputs": [{ "name": "corpus_id", "type": "string", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.stats" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_list_files", "id_status": "permanent", "name": "docs.list_files", "description": "List files in a corpus.", "inputs": [{ "name": "corpus_id", "type": "string", "required": true }, { "name": "status", "type": "string", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.list_files" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_list_sections", "id_status": "permanent", "name": "docs.list_sections", "description": "TOC of a file (heading_path tree).", "inputs": [{ "name": "file_id", "type": "string", "required": true }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.list_sections" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_search", "id_status": "permanent", "name": "docs.search", "description": "Semantic search. Scope with corpus_id, file_id, heading_prefix.", "inputs": [{ "name": "query", "type": "string", "required": true }, { "name": "corpus_id", "type": "string", "required": false }, { "name": "file_id", "type": "string", "required": false }, { "name": "heading_prefix", "type": "string", "required": false }, { "name": "top_k", "type": "number", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.search" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_neighbor_chunks", "id_status": "permanent", "name": "docs.neighbor_chunks", "description": "Context expansion around a chunk.", "inputs": [{ "name": "chunk_id", "type": "string", "required": true }, { "name": "before", "type": "number", "required": false }, { "name": "after", "type": "number", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.neighbor_chunks" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_file_get", "id_status": "permanent", "name": "docs.file.get", "description": "Full file text + chunks.", "inputs": [{ "name": "file_id", "type": "string", "required": true }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.file.get" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } },
-    { "id": "docs_ingest_file", "id_status": "permanent", "name": "docs.ingest.file", "description": "Ingest a document (text or base64).", "inputs": [{ "name": "corpus_id", "type": "string", "required": true }, { "name": "source_id", "type": "string", "required": true }, { "name": "text", "type": "string", "required": false }, { "name": "content_base64", "type": "string", "required": false }, { "name": "path", "type": "string", "required": false }, { "name": "mime", "type": "string", "required": false }], "output": { "type": "object" }, "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.ingest.file" }, "policy": { "allowed": "always" }, "security": { "classification": "private" } }
+    {
+      "id": "dropbox_setup",
+      "id_status": "permanent",
+      "name": "dropbox.setup",
+      "description": "Start Dropbox OAuth flow.",
+      "inputs": [],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "dropbox-mcp",
+        "mcp_tool": "dropbox.setup"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "public"
+      }
+    },
+    {
+      "id": "dropbox_status",
+      "id_status": "permanent",
+      "name": "dropbox.status",
+      "description": "Is Dropbox connected?",
+      "inputs": [],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "dropbox-mcp",
+        "mcp_tool": "dropbox.status"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "public"
+      }
+    },
+    {
+      "id": "dropbox_search",
+      "id_status": "permanent",
+      "name": "dropbox.search",
+      "description": "Search filenames/content in Dropbox.",
+      "inputs": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "max_results",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "dropbox-mcp",
+        "mcp_tool": "dropbox.search"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "dropbox_index_folder",
+      "id_status": "permanent",
+      "name": "dropbox.index_folder",
+      "description": "Walk Dropbox folder, ingest supported files into a corpus. Resumable.",
+      "inputs": [
+        {
+          "name": "corpus_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "recursive",
+          "type": "boolean",
+          "required": false
+        },
+        {
+          "name": "use_cursor",
+          "type": "boolean",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "dropbox-mcp",
+        "mcp_tool": "dropbox.index_folder"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "dropbox_upload",
+      "id_status": "permanent",
+      "name": "dropbox.upload",
+      "description": "Upload file to Dropbox (base64). Requires confirmation.",
+      "inputs": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "content_base64",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "dropbox-mcp",
+        "mcp_tool": "dropbox.upload"
+      },
+      "policy": {
+        "allowed": "with_approval"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_corpus_create",
+      "id_status": "permanent",
+      "name": "docs.corpus.create",
+      "description": "Create a corpus.",
+      "inputs": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "source_type",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "source_config",
+          "type": "object",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.corpus.create"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_corpus_list",
+      "id_status": "permanent",
+      "name": "docs.corpus.list",
+      "description": "List corpora.",
+      "inputs": [],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.corpus.list"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_corpus_delete",
+      "id_status": "permanent",
+      "name": "docs.corpus.delete",
+      "description": "Delete a corpus (destructive).",
+      "inputs": [
+        {
+          "name": "corpus_id",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.corpus.delete"
+      },
+      "policy": {
+        "allowed": "with_approval"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_stats",
+      "id_status": "permanent",
+      "name": "docs.stats",
+      "description": "Corpus counts.",
+      "inputs": [
+        {
+          "name": "corpus_id",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.stats"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_list_files",
+      "id_status": "permanent",
+      "name": "docs.list_files",
+      "description": "List files in a corpus.",
+      "inputs": [
+        {
+          "name": "corpus_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.list_files"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_list_sections",
+      "id_status": "permanent",
+      "name": "docs.list_sections",
+      "description": "TOC of a file (heading_path tree).",
+      "inputs": [
+        {
+          "name": "file_id",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.list_sections"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_search",
+      "id_status": "permanent",
+      "name": "docs.search",
+      "description": "Semantic search. Scope with corpus_id, file_id, heading_prefix.",
+      "inputs": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "corpus_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "file_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "heading_prefix",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "top_k",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.search"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_neighbor_chunks",
+      "id_status": "permanent",
+      "name": "docs.neighbor_chunks",
+      "description": "Context expansion around a chunk.",
+      "inputs": [
+        {
+          "name": "chunk_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "before",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "after",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.neighbor_chunks"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_file_get",
+      "id_status": "permanent",
+      "name": "docs.file.get",
+      "description": "Full file text + chunks.",
+      "inputs": [
+        {
+          "name": "file_id",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.file.get"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    },
+    {
+      "id": "docs_ingest_file",
+      "id_status": "permanent",
+      "name": "docs.ingest.file",
+      "description": "Ingest a document (text or base64).",
+      "inputs": [
+        {
+          "name": "corpus_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "source_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "content_base64",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "mime",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "object"
+      },
+      "source": {
+        "type": "mcp_bridge",
+        "connection_id": "docs-index-mcp",
+        "mcp_tool": "docs.ingest.file"
+      },
+      "policy": {
+        "allowed": "always"
+      },
+      "security": {
+        "classification": "private"
+      }
+    }
   ],
   "policy": {
     "guardrails": {
       "never": [
         "Answer factual content questions without calling docs.search first",
         "Invent file paths, chunk contents, or heading paths",
-        "Synthesize a legal/technical interpretation \u2014 hand off to contract-analyst",
+        "Synthesize a legal/technical interpretation — hand off to contract-analyst",
         "Upload, delete, or modify content without explicit user confirmation"
       ],
       "always": [
-        "Decompose multi-part questions before searching",
-        "Scope docs.search with file_id / heading_prefix when you know the target",
-        "Expand key matches with docs.neighbor_chunks before composing answers or handoff briefs",
-        "For complex analytical questions hand off to contract-analyst with a structured dossier",
-        "Cite file path + heading for every factual claim"
+        "When the user asks about directory structure, folder contents, 'show files', or similar listing requests, use dropbox.list_folder with path='' for root (or a specific path) — NEVER use dropbox.search with an empty query (Dropbox's search API rejects empty queries with invalid_argument).",
+        "Use dropbox.search ONLY when the user provides specific keywords/text to search for. Never pass empty string as the query."
       ]
     }
   },
   "engine": {
     "model": "claude-sonnet-4-20250514",
     "temperature": 0.2,
-    "rv2": { "max_iterations": 15, "iteration_timeout_ms": 45000, "allow_parallel_tools": false },
-    "hlr": { "enabled": true, "critic": { "enabled": true, "strictness": "medium" }, "reflection": { "enabled": true, "depth": "shallow" } },
-    "autonomy": { "level": "autonomous" }
+    "rv2": {
+      "max_iterations": 15,
+      "iteration_timeout_ms": 45000,
+      "allow_parallel_tools": false
+    },
+    "hlr": {
+      "enabled": true,
+      "critic": {
+        "enabled": true,
+        "strictness": "medium"
+      },
+      "reflection": {
+        "enabled": true,
+        "depth": "shallow"
+      }
+    },
+    "autonomy": {
+      "level": "autonomous"
+    }
   }
 }
