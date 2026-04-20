@@ -59,6 +59,10 @@
     {
       "id": "docs-workbench-mcp",
       "required": true
+    },
+    {
+      "id": "browser-mcp",
+      "required": true
     }
   ],
   "ui_plugins": [
