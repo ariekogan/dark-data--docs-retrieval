@@ -117,5 +117,6 @@
         "DROPBOX_OAUTH_REDIRECT_URI": "https://api.ateam-ai.com/api/integrations/dropbox/callback"
       }
     }
-  ]
+  ],
+  "_force_redeploy": true
 }
