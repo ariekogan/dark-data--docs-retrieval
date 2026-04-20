@@ -18,7 +18,8 @@
       "description": "Entry point. Decomposes questions, runs targeted retrieval, hands off to contract-analyst for deep reasoning.",
       "connectors": [
         "dropbox-mcp",
-        "docs-index-mcp"
+        "docs-index-mcp",
+        "browser-mcp"
       ]
     },
     {
