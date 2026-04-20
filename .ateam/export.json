@@ -774,7 +774,7 @@
           "id": "docs_search",
           "id_status": "permanent",
           "name": "docs.search",
-          "description": "Semantic search. Scope with corpus_id, file_id, heading_prefix.",
+          "description": "Semantic search. REQUIRED param name is `query` (the search text). Optional params: `corpus_id`, `file_id`, `heading_prefix`, `top_k` (NOT `k`, NOT `limit` — it is spelled `top_k` with an underscore). Never pass a param named `k`.",
           "inputs": [
             {
               "name": "query",
