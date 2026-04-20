@@ -141,7 +141,14 @@ export async function indexFolder({ tokenActor, callerActor, actor, corpus_id, p
           mime: effectiveMime,
           content_base64,
         });
-        if (result?.skipped) skipped += 1; else indexed += 1;
+        if (result?.ok === false) {
+          failed += 1;
+          errors.push({ path: entry.path_display, error: result.error || "ingest failed" });
+        } else if (result?.skipped) {
+          skipped += 1;
+        } else {
+          indexed += 1;
+        }
       } catch (e) {
         failed += 1;
         errors.push({ path: entry.path_display, error: e.message });
