@@ -373,7 +373,12 @@
         // 1) Get the auth URL from dropbox-mcp (it builds the nonce + PKCE challenge
         //    and stashes the verifier keyed by the state).
         const setup = await mcpCall('dropbox.setup', {}, 'dropbox-mcp');
-        if (setup?.ok === false) throw new Error(setup.error || 'setup failed');
+        // [DEBUG] show what setup returned
+        log.innerHTML += `<div class="line muted">[debug] setup returned: ${esc(JSON.stringify(setup).slice(0, 400))}</div>`;
+        console.log('[workbench][dropbox.setup-response]', setup);
+        if (!setup || setup.ok === false || !setup.auth_url) {
+          throw new Error('dropbox.setup returned unusable response: ' + JSON.stringify(setup).slice(0, 200));
+        }
         log.innerHTML += '<div class="line ok">✓ Auth URL ready. Opening the Auth WebView…</div>';
 
         // 2) Hand the URL to the platform browser-mcp's generic OAuth flow. It
