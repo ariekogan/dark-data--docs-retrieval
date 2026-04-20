@@ -104,14 +104,30 @@ export async function indexFolder({ tokenActor, callerActor, actor, corpus_id, p
         let buffer;
         let effectiveMime = guessMime(entry.path_lower);
         if (needsExport) {
-          // Prefer MARKDOWN for Paper/Google Docs — HTML exports from Dropbox
-          // Paper come back as a shell with CSS/JS and near-empty body text,
-          // which our HTML stripper reduces to "". Markdown is clean content.
+          // Try HTML first — for Dropbox Paper, markdown export often returns
+          // zero bytes while HTML returns real content. If HTML is empty,
+          // fall back to markdown (Google Docs behaves the opposite way).
           const options = entry.export_info.export_options || [];
-          const format = options.includes("markdown") ? "markdown" : (options[0] || "html");
-          const r = await dropbox.exportFile(tokenActor, { path: entry.path_lower, format });
-          buffer = r.buffer;
-          effectiveMime = format === "markdown" ? "text/markdown" : "text/html";
+          const candidates = [];
+          if (options.includes("html")) candidates.push("html");
+          if (options.includes("markdown")) candidates.push("markdown");
+          if (candidates.length === 0 && options.length) candidates.push(options[0]);
+          if (candidates.length === 0) candidates.push("html");
+          let chosenFormat = null;
+          for (const fmt of candidates) {
+            const r = await dropbox.exportFile(tokenActor, { path: entry.path_lower, format: fmt });
+            if (r.buffer && r.buffer.length > 0) {
+              buffer = r.buffer;
+              chosenFormat = fmt;
+              break;
+            }
+          }
+          if (!buffer) {
+            // All export formats empty — skip gracefully
+            skipped += 1;
+            continue;
+          }
+          effectiveMime = chosenFormat === "markdown" ? "text/markdown" : "text/html";
         } else {
           const r = await dropbox.download(tokenActor, { path: entry.path_lower });
           buffer = r.buffer;
