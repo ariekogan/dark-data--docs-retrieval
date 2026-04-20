@@ -374,6 +374,18 @@
       log.style.display = 'block';
       log.innerHTML = '<div class="line">Requesting OAuth URL…</div>';
       btn.disabled = true;
+
+      // CRITICAL: open the popup SYNCHRONOUSLY here, inside the click handler,
+      // or Chrome's popup blocker will kill it (the await below breaks the
+      // user-gesture chain). We open about:blank first and set location
+      // after we have the auth URL.
+      const popup = window.open('about:blank', 'dropbox_oauth',
+        'width=560,height=720,menubar=no,toolbar=no,location=yes,status=yes');
+      if (!popup) {
+        log.innerHTML += '<div class="line err">✗ Popup blocked. Allow popups for this site in your browser settings, then try again. Or use the paste-URL fallback below.</div>';
+        btn.disabled = false;
+      }
+
       try {
         // 1) Get the auth URL from dropbox-mcp (it builds the nonce + PKCE challenge
         //    and stashes the verifier keyed by the state).
@@ -384,24 +396,21 @@
         if (!setup || setup.ok === false || !setup.auth_url) {
           throw new Error('dropbox.setup returned unusable response: ' + JSON.stringify(setup).slice(0, 200));
         }
-        log.innerHTML += '<div class="line ok">✓ Auth URL ready. Opening Dropbox sign-in…</div>';
+        log.innerHTML += '<div class="line ok">✓ Auth URL ready. Navigating popup to Dropbox…</div>';
 
-        // 2) Open the OAuth URL in a popup window. The user signs into Dropbox
-        //    there. Dropbox redirects to our registered callback
+        // 2) Navigate the already-opened popup to Dropbox's OAuth URL.
+        //    Dropbox redirects to our registered callback
         //    (https://api.ateam-ai.com/api/integrations/dropbox/callback) which
-        //    is served by Core and already calls dropbox._storeTokens with the
-        //    code + state. The popup closes/lands on that URL; we don't need
-        //    to inspect its contents.
-        const popup = window.open(setup.auth_url, 'dropbox_oauth',
-          'width=560,height=720,menubar=no,toolbar=no,location=yes,status=yes');
-        if (!popup) {
-          log.innerHTML += '<div class="line err">✗ Popup blocked. Allow popups for this site and try again, or use the paste-URL fallback below.</div>';
-          renderPasteFallback(log, setup.auth_url);
-          btn.disabled = false;
-          return;
+        //    is served by Core and already calls dropbox._storeTokens with
+        //    code + state. If the popup was blocked earlier, the paste-URL
+        //    fallback is always rendered so the user can still complete it.
+        if (popup && !popup.closed) {
+          try { popup.location.href = setup.auth_url; } catch {}
+          log.innerHTML += '<div class="line">Sign into Dropbox in the popup and approve.</div>';
+          log.innerHTML += '<div class="line muted">Watching for connection…</div>';
+        } else {
+          log.innerHTML += '<div class="line muted">Popup unavailable — use the paste-URL fallback below, or open this link manually: <a href="' + esc(setup.auth_url) + '" target="_blank" style="color: var(--accent);">Dropbox OAuth</a></div>';
         }
-        log.innerHTML += '<div class="line">Sign into Dropbox in the popup and approve.</div>';
-        log.innerHTML += '<div class="line muted">Watching for connection…</div>';
         renderPasteFallback(log, setup.auth_url);
 
         // 3) Poll status — Core's /api/integrations/dropbox/callback calls
