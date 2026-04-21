@@ -1,0 +1,157 @@
+# Docs Retrieval — Agent Onboarding
+
+You are working on an A-Team solution called **docs-retrieval**. This file onboards you to the repo in one read. Skim top to bottom before your first tool call.
+
+---
+
+## 1. What this solution is
+
+A 2-skill orchestrator that ingests Dropbox folders into searchable corpora and answers questions about them.
+
+- **docs-librarian** (orchestrator) — decomposes questions, calls `docs.search`, hands off complex reasoning to the analyst.
+- **contract-analyst** (worker) — deep multi-hop reasoning on retrieved chunks.
+
+Uses **tenant-shared corpora**: one org Dropbox account feeds one shared corpus visible to all users in the tenant. Implemented via a `shared: true` flag on the corpus record (platform feature in `docs-index-mcp`).
+
+---
+
+## 2. Repo layout
+
+```
+solution.json                              # solution definition (skills, platform_connectors, ui_plugins)
+skills/
+  docs-librarian/skill.json                # orchestrator skill — persona, tools, guardrails, triggers
+  contract-analyst/skill.json              # worker skill
+connectors/
+  dropbox-mcp/                             # SOLUTION connector (stdio) — Dropbox OAuth + index_folder
+    server.js                              # tool registration
+    src/indexFolder.js                     # walks Dropbox, calls docs.ingest.file
+    src/dropboxClient.js                   # Dropbox API client (PKCE OAuth)
+    src/storage.js                         # SQLite: app_config, tokens, oauth_nonces
+  docs-workbench-mcp/                      # SOLUTION connector (stdio) — just hosts the UI plugin
+    ui-dist/workbench/index.html           # iframe UI: configure Dropbox app, connect, manage corpora
+.ateam/export.json                         # deploy bundle (auto-generated; don't hand-edit)
+```
+
+Platform connectors you consume (not in this repo):
+- **docs-index-mcp** — Mongo-backed corpus/chunk/embedding store. Owns `docs.corpus.*`, `docs.ingest.*`, `docs.search`, `docs.sync.*`.
+- **browser-mcp** — generic OAuth webview; we use `web.openOAuthFlow` for Dropbox.
+
+---
+
+## 3. Dev workflow (GitHub-first, single branch)
+
+Everything lands on `main` directly. Checkpoints via `safe-*` tags.
+
+```
+1. git clone <this repo>
+2. edit code in your IDE
+3. git commit && git push origin main
+4. ateam_build_and_run(solution_id: "docs-retrieval", github: true)   # pulls main, deploys
+5. ateam_test_skill / ateam_test_connector                              # verify
+6. ateam_github_promote(solution_id, label: "...")                       # checkpoint when green
+```
+
+If you prefer not to use a local clone, use `ateam_github_patch` / `ateam_github_write` to edit files remotely — same effect.
+
+**First tool call of every session:** `ateam_auth(api_key: "adas_dark-data_...")`.
+
+---
+
+## 4. Which MCP tool for what
+
+| Task | Tool |
+|------|------|
+| Edit **connector source code** (server.js, UI html, plugins) | `ateam_github_patch` / `ateam_github_write` → `ateam_build_and_run(github:true)` |
+| Edit **skill definition** (persona, tools, intents, guardrails, triggers) | `ateam_patch(target:"skill", skill_id, updates:{...})` — updates + redeploys in one call |
+| Edit **solution definition** (linked_skills, platform_connectors, ui_plugins) | `ateam_patch(target:"solution", updates:{...})` |
+| First-time deploy or after pulling changes on GitHub | `ateam_build_and_run(github: true)` |
+| Test a skill end-to-end | `ateam_test_skill(solution_id, skill_id, message)` |
+| Test one connector tool in isolation | `ateam_test_connector(solution_id, connector_id, tool, args)` |
+| Inspect deployed state | `ateam_get_solution(solution_id, view: "definition"\|"skills"\|"health")` |
+| Read connector source from GitHub | `ateam_github_read(solution_id, path)` |
+| Rollback | `ateam_github_rollback(solution_id, tag)` |
+| List safe checkpoints | `ateam_github_list_versions(solution_id)` |
+
+**Prefer `ateam_patch` over `github_patch` + `build_and_run`** when changing skill definitions — it's one call instead of three and always redeploys correctly.
+
+---
+
+## 5. Testing recipes
+
+**Full skill run** (like a real user message):
+```
+ateam_test_skill(solution_id: "docs-retrieval", skill_id: "docs-librarian",
+                 message: "what is flight W6 2542?")
+```
+
+**Single tool on a connector** — bypass the skill engine:
+```
+ateam_test_connector(solution_id: "docs-retrieval",
+                     connector_id: "docs-index-mcp",
+                     tool: "docs.search",
+                     args: { corpus_id: "...", query: "...", top_k: 5 })
+```
+
+⚠️ `ateam_test_connector` runs as `_system_service` (Core strips user-provided `_adas_actor`). Use it for connector-level bugs, not for testing per-user actor flows.
+
+---
+
+## 6. Known pitfalls (we actually hit these)
+
+### A. `top_k` not `k`
+`docs.search` expects `top_k`. Passing `k` silently fails param validation. The librarian's skill description calls this out explicitly — don't undo it.
+
+### B. Stale corpus ids from memory
+Corpus ids change every time a corpus is recreated. **Always call `docs.corpus.list` first in any job** before `docs.search`. The librarian persona enforces this order.
+
+### C. Silent-skip in `dropbox.index_folder`
+Earlier version counted `{ok:false}` responses from `docs.ingest.file` as "indexed". Fixed — any non-`ok` result now adds to `errors[]` and `failed`. Don't revert that logic in `src/indexFolder.js`.
+
+### D. Shared corpora need the `shared: true` flag
+When creating a corpus for shared-mode (the whole-tenant-Dropbox case), pass `shared: true` to `docs.corpus.create`. Without it the corpus is owned by one actor and the hourly sync trigger (which runs as `_tenant_shared`) can't write into it.
+
+### E. Actor split in `dropbox.index_folder`
+In SHARED_MODE, **tokenActor** = `_tenant_shared` (for Dropbox API), **callerActor** = whoever triggered the sync (for corpus ownership). Both are computed in `connectors/dropbox-mcp/server.js`. Don't collapse them.
+
+### F. Paper (.paper) files need HTML-first export
+Dropbox Paper markdown export returns 0 bytes for some docs. We try HTML first, fall back to markdown. See `src/indexFolder.js` — the `candidates` loop. Don't remove the zero-byte guard.
+
+### G. `_adas_actor` stripped by Core in test_connector
+Core overrides the actor to `_system_service` for admin/test calls. Never rely on `_adas_actor` passing through unchanged when invoking via `ateam_test_connector`. It WILL pass through cleanly for real-user calls via the UI / chat / webhooks.
+
+### H. Dropbox OAuth paste-URL fallback
+The iframe OAuth popup sometimes can't redirect back due to sandboxing. The workbench UI always renders a paste-URL textarea as fallback — user copies the `?code=&state=` URL from the popup, pastes, we call `dropbox._storeTokens` directly. Don't remove this fallback.
+
+---
+
+## 7. Spec & examples
+
+- `ateam_get_spec(topic: "skill")` — full skill schema
+- `ateam_get_spec(topic: "solution")` — solution schema
+- `ateam_get_spec(topic: "overview")` — API overview
+- `ateam_get_examples(type: "skill"\|"connector"\|"connector-ui"\|"solution")` — working references
+- `ateam_get_workflows()` — step-by-step builder workflows
+
+Read these on your first edit into an area you haven't touched before.
+
+---
+
+## 8. Environment
+
+- Tenant: `dark-data`
+- `DROPBOX_SHARED_MODE=1` (set in `solution.json.connectors[].env`) — turns on the tenant-shared actor path.
+- `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` — can be overridden via the UI (SQLite-backed, per-tenant) — env is just the fallback.
+
+---
+
+## 9. When in doubt
+
+1. Read the spec: `ateam_get_spec`.
+2. Look at a working example: `ateam_get_examples`.
+3. Check the live deployed state: `ateam_get_solution(view:"definition")`.
+4. Inspect recent commits: `ateam_github_log(solution_id)`.
+5. List checkpoints: `ateam_github_list_versions(solution_id)`.
+6. Ask the user if the task is ambiguous — don't guess at business rules.
+
+Never fabricate citations, tool names, or corpus ids. Retrieval is truth.
