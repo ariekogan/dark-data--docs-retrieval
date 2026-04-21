@@ -128,6 +128,8 @@ Read these on your first edit into an area you haven't touched.
 <!-- SOLUTION-SPECIFIC NOTES BELOW — not auto-regenerated -->
 
 
+
+
 # Docs Retrieval — Agent Onboarding
 
 You are working on an A-Team solution called **docs-retrieval**. This file onboards you to the repo in one read. Skim top to bottom before your first tool call.
