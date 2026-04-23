@@ -1,7 +1,7 @@
 {
   "id": "docs-retrieval",
   "name": "Docs Retrieval",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Two-skill orchestrator solution for technical/contract document retrieval, using the cloud-docs platform connector (Dropbox, Google Drive) and docs-index-mcp for corpus retrieval.",
   "orchestrator_skill": "docs-librarian",
   "identity": {
@@ -29,13 +29,6 @@
       "connectors": [
         "docs-index-mcp"
       ]
-    },
-    {
-      "connectors": [
-        "dropbox-mcp",
-        "docs-index-mcp"
-      ],
-      "id": "docs-librarian"
     }
   ],
   "grants": [],
@@ -60,11 +53,7 @@
       "required": true
     },
     {
-      "id": "dropbox-mcp",
-      "required": true
-    },
-    {
-      "id": "docs-workbench-mcp",
+      "id": "cloud-docs",
       "required": true
     },
     {
@@ -100,13 +89,12 @@
   "security_contracts": [],
   "connectors": [
     {
-      "env": {
-        "DROPBOX_APP_KEY": "inqzz7agquyth38",
-        "DROPBOX_APP_SECRET": "s3sfjxghf6vwlst",
-        "DROPBOX_OAUTH_REDIRECT_URI": "https://api.ateam-ai.com/api/integrations/dropbox/callback",
-        "DROPBOX_SHARED_MODE": "1"
-      },
-      "id": "dropbox-mcp"
+      "id": "cloud-docs",
+      "env": {}
+    },
+    {
+      "id": "docs-index-mcp",
+      "env": {}
     }
   ],
   "_force_redeploy": true
