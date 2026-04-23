@@ -10,7 +10,7 @@ You are working on A-Team solution **docs-retrieval**. Read this entire file bef
 
 ## 1. What this solution is
 
-Two-skill orchestrator solution for technical/contract document retrieval, with a Dropbox setup wizard + corpus manager UI.
+Two-skill orchestrator solution for technical/contract document retrieval, using the cloud-docs platform connector (Dropbox, Google Drive) and docs-index-mcp for corpus retrieval.
 
 
 - **Orchestrator skill:** `docs-librarian`
@@ -26,21 +26,18 @@ Two-skill orchestrator solution for technical/contract document retrieval, with 
 
 ## 3. Connectors
 
-**Solution connectors** (live in this repo under `connectors/`):
-  - `dropbox-mcp`
-
 **Platform connectors** (shared infrastructure, not in this repo):
   - `docs-index-mcp`
-  - `dropbox-mcp`
-  - `docs-workbench-mcp`
+  - `cloud-docs`
   - `browser-mcp`
+  - `docs-workbench-mcp`
+  - `dropbox-mcp`
 
 
 ---
 
 ## 4. UI plugins
 
-- **Docs Workbench** (`mcp:docs-workbench-mcp:workbench`, iframe)
 - **Auth WebView** (`mcp:browser-mcp:auth-webview`, adaptive)
 
 ---
@@ -53,9 +50,7 @@ skills/
   docs-librarian/skill.json
   contract-analyst/skill.json
 connectors/                      # solution connectors (stdio MCPs)
-  dropbox-mcp/
-    server.js
-    package.json
+  _(no solution connectors)_
 .ateam/export.json               # auto-generated deploy bundle (don't hand-edit)
 CLAUDE.md                        # this file — auto-regenerated above sentinel
 ```
