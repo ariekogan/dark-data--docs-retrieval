@@ -651,5 +651,10 @@
   ],
   "policy.guardrails.always": [
     "When answering any content question about indexed documents, the FIRST tool call must be docs.corpus.list. The SECOND must be docs.search. No other order is acceptable."
+  ],
+  "bootstrap_tools": [
+    "sys.getArtifact",
+    "docs.search",
+    "dropbox.upload"
   ]
 }
