@@ -143,7 +143,7 @@ export async function getTemporaryLink(actorId, { path }) {
 
 export async function upload(actorId, { path, content, mode = "add", autorename = false }) {
   const t = await getValidAccessToken(actorId);
-  return contentUpload("/2/files/upload", { path, mode, autorename, mute: true, strict_conflict: false }, content, t);
+  return contentUpload("/2/files/upload", { path, mode: { ".tag": mode }, autorename, mute: true, strict_conflict: false }, content, t);
 }
 
 export async function createFolder(actorId, { path, autorename = false }) {
