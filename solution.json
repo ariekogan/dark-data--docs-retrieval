@@ -29,6 +29,13 @@
       "connectors": [
         "docs-index-mcp"
       ]
+    },
+    {
+      "connectors": [
+        "dropbox-mcp",
+        "docs-index-mcp"
+      ],
+      "id": "docs-librarian"
     }
   ],
   "grants": [],
@@ -53,7 +60,11 @@
       "required": true
     },
     {
-      "id": "cloud-docs",
+      "id": "dropbox-mcp",
+      "required": true
+    },
+    {
+      "id": "docs-workbench-mcp",
       "required": true
     },
     {
@@ -87,6 +98,16 @@
     }
   ],
   "security_contracts": [],
-  "connectors": [],
+  "connectors": [
+    {
+      "env": {
+        "DROPBOX_APP_KEY": "inqzz7agquyth38",
+        "DROPBOX_APP_SECRET": "s3sfjxghf6vwlst",
+        "DROPBOX_OAUTH_REDIRECT_URI": "https://api.ateam-ai.com/api/integrations/dropbox/callback",
+        "DROPBOX_SHARED_MODE": "1"
+      },
+      "id": "dropbox-mcp"
+    }
+  ],
   "_force_redeploy": true
 }
