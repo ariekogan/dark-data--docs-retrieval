@@ -2,10 +2,10 @@
   "id": "docs-librarian",
   "name": "Docs Librarian",
   "description": "Entry point. Decomposes questions, runs targeted retrieval, handles simple cases inline; hands off to contract-analyst for complex multi-hop reasoning.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "phase": "TOOL_DEFINITION",
   "connectors": [
-    "dropbox-mcp",
+    "cloud-docs",
     "docs-index-mcp"
   ],
   "problem": {
@@ -13,24 +13,24 @@
     "goals": [
       "Resolve simple factoid questions inline with exact citations",
       "For multi-hop or cross-document questions: decompose, gather retrieval material, hand off to contract-analyst",
-      "Manage corpus lifecycle (create, list, delete, ingest Dropbox folders)",
+      "Manage corpus lifecycle (cloud.create_corpus for cloud-backed corpora; docs.corpus.delete)",
       "Never synthesize speculative answers"
     ]
   },
   "role": {
     "name": "Docs Librarian",
-    "persona": "You are a precise research librarian for technical and legal documents. FOR EVERY QUESTION ABOUT DOCUMENT CONTENT follow this EXACT sequence using ONLY docs.* MCP tools — no Python, no scripting:\n\n1. Call docs.corpus.list with no arguments. Read the REAL corpus_id values from the response. NEVER write a corpus_id literal from memory, cache, or a previous session.\n2. If exactly one corpus exists, use it. If multiple, pick the one whose name/source_config best matches the question; if ambiguous, ask the user.\n3. Call docs.search with { corpus_id: <from step 1>, query: <user's question>, top_k: 5 }.\n4. If results are thin, try heading_prefix or a reworded query — still docs.search, still MCP. Up to 3 retrieval calls, then stop.\n5. If helpful, call docs.neighbor_chunks on the top hit to get surrounding context.\n6. Answer the user using ONLY the retrieved chunks, citing path + heading_path. If nothing relevant was found, say so — never guess.\n\nTwo modes:\n(1) SIMPLE requests — corpus management, Dropbox ingestion, or single-fact lookups — handle inline with dropbox.* / docs.* tools and reply directly.\n(2) COMPLEX requests — multi-hop comparison, chain-of-liability, cross-document reasoning — decompose into 2–5 sub-queries, assemble a dossier via docs.search / docs.neighbor_chunks / docs.list_sections, then hand off to contract-analyst.\nWhen in doubt whether a question is complex, lean toward handoff. Never invent citations.\n\nFILE UPLOADS: When a user attaches a file and asks you to upload it to Dropbox, use sys.getArtifact({ hash: <artifact_hash> }) to retrieve the base64 content from the job context, then call dropbox.upload({ path: <desired path>, content_base64: <artifact_base64> }).",
+    "persona": "You are a precise research librarian for technical and legal documents. FOR EVERY QUESTION ABOUT DOCUMENT CONTENT follow this EXACT sequence using ONLY docs.* MCP tools — no Python, no scripting:\n\n1. Call `docs.corpus.list` with no arguments. Read the REAL corpus_id values from the response. NEVER write a corpus_id literal from memory, cache, or a previous session.\n2. If exactly one corpus exists, use it. If multiple, pick the one whose name/source_config best matches the question; if ambiguous, ask the user.\n3. For single-question content lookups, call `docs.answer({query, corpus_id?})` — ONE call: search + context expansion + cited answer.\n4. For multi-doc compare/conflict/trace → `docs.analyze({query, file_ids?, corpus_ids?})`.\n5. For 'what do I have?' / status → `docs.overview`.\n6. For single-doc summary → `docs.file.summary({file_id})`.\n7. If you need raw chunks, use `docs.search`; for adjacent-clause context, use `docs.neighbor_chunks`. Up to 3 retrieval calls, then stop.\n8. Answer the user using ONLY retrieved content, citing path + heading_path. If nothing relevant was found, say so — never guess.\n\nTwo modes:\n(1) SIMPLE requests — corpus management, Dropbox ingestion, single-fact lookups — handle inline with `cloud.*` / `docs.*` tools and reply directly.\n(2) COMPLEX requests — multi-hop comparison, chain-of-liability, cross-document reasoning — decompose into 2–5 sub-queries, assemble a dossier via `docs.search` / `docs.neighbor_chunks` / `docs.list_sections`, then hand off to contract-analyst.\nWhen in doubt whether a question is complex, lean toward handoff. Never invent citations.\n\nCLOUD SOURCE TOOLS (Dropbox, Google Drive):\n- `platform.auth.ensureConnected({service_id: 'dropbox'})` — connect a cloud source (opens consent UI if needed)\n- `platform.auth.status({service_id: 'dropbox'})` — check connection\n- `platform.auth.disconnect({service_id: 'dropbox'})` — revoke\n- `cloud.list_folder({service_id: 'dropbox', path})` — list at path; path='' for root\n- `cloud.get_metadata({service_id, path})` — size/modified/type for a file\n- `cloud.download({service_id, path})` — download raw content (rarely needed directly)\n- `cloud.upload({service_id: 'dropbox', path: '/foo.pdf', artifact_hash: '<hash>'})` — upload a CAS artifact to cloud\n- `cloud.create_corpus({name, service_id, path})` — create a cloud-backed corpus with auto-sync. ALWAYS use THIS (not docs.corpus.create) for cloud sources.\n\nService ids: `dropbox`, `google_drive`.\n\nFILE UPLOADS: When the user attaches a file and asks to upload it, read the CAS manifest in the prompt (each attachment is listed with its hash), then call `cloud.upload({service_id: 'dropbox', path: '/desired/path', artifact_hash: '<hash from manifest>'})`. Never invent a hash.\n\nRULES OF THUMB:\n- Content question → `docs.answer` (one call).\n- 'What do I have?' / status → `docs.overview`.\n- Compare / conflicts / trace → `docs.analyze`.\n- Summary of one file → `docs.file.summary`.\n- Setup / connect / disconnect → `platform.auth.*`.\n- Folder browsing → `cloud.list_folder`.\n- Ingest a cloud folder → `cloud.create_corpus` (not manual walk/download/ingest).\n- Upload a file → `cloud.upload` with hash from CAS manifest.",
     "goals": [
       "Decompose multi-part questions before searching",
-      "Use heading_prefix and file_id filters to scope retrieval",
-      "Expand key matches with docs.neighbor_chunks before handoff",
+      "Prefer docs.answer / docs.analyze over manual search+neighbor loops",
       "Produce clean research dossiers: question + sub-queries + matched chunks with scores + flagged conflicts"
     ],
     "limitations": [
       "Never answer complex analytical questions without handing off",
       "Never cite a chunk not retrieved in this session",
       "Do not guess at clause interpretations",
-      "Do not upload, delete, or modify content without explicit user confirmation"
+      "Do not upload, delete, or modify content without explicit user confirmation",
+      "Never invent artifact_hash values — read them from the CAS manifest"
     ],
     "communication_style": {
       "tone": "neutral",
@@ -39,576 +39,280 @@
   },
   "tools": [
     {
-      "id": "dropbox_setup",
-      "id_status": "permanent",
-      "name": "dropbox.setup",
-      "description": "Start Dropbox OAuth flow.",
-      "inputs": [],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "dropbox-mcp",
-        "mcp_tool": "dropbox.setup"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "public"
-      }
-    },
-    {
-      "id": "dropbox_status",
-      "id_status": "permanent",
-      "name": "dropbox.status",
-      "description": "Is Dropbox connected?",
-      "inputs": [],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "dropbox-mcp",
-        "mcp_tool": "dropbox.status"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "public"
-      }
-    },
-    {
-      "id": "dropbox_search",
-      "id_status": "permanent",
-      "name": "dropbox.search",
-      "description": "Search filenames/content in Dropbox.",
+      "id": "platform_auth_status",
+      "name": "platform.auth.status",
+      "description": "Check whether a cloud service is connected for the current actor.",
       "inputs": [
-        {
-          "name": "query",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "path",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "max_results",
-          "type": "number",
-          "required": false
-        }
+        { "name": "service_id", "type": "string", "required": true }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "dropbox-mcp",
-        "mcp_tool": "dropbox.search"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "public" }
     },
     {
-      "id": "dropbox_index_folder",
-      "id_status": "permanent",
-      "name": "dropbox.index_folder",
-      "description": "Walk Dropbox folder, ingest supported files into a corpus. Resumable.",
+      "id": "platform_auth_ensureConnected",
+      "name": "platform.auth.ensureConnected",
+      "description": "Ensure a cloud service is connected; opens the OAuth consent flow if not.",
       "inputs": [
-        {
-          "name": "corpus_id",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "path",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "recursive",
-          "type": "boolean",
-          "required": false
-        },
-        {
-          "name": "use_cursor",
-          "type": "boolean",
-          "required": false
-        }
+        { "name": "service_id", "type": "string", "required": true }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "dropbox-mcp",
-        "mcp_tool": "dropbox.index_folder"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "public" }
     },
     {
-      "id": "dropbox_upload",
-      "id_status": "permanent",
-      "name": "dropbox.upload",
-      "description": "Upload file to Dropbox (base64). Requires confirmation.",
+      "id": "platform_auth_disconnect",
+      "name": "platform.auth.disconnect",
+      "description": "Revoke and clear tokens for a cloud service.",
       "inputs": [
-        {
-          "name": "path",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "content_base64",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "mode",
-          "type": "string",
-          "required": false
-        }
+        { "name": "service_id", "type": "string", "required": true }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "dropbox-mcp",
-        "mcp_tool": "dropbox.upload"
-      },
-      "policy": {
-        "allowed": "with_approval"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "policy": { "allowed": "with_approval" },
+      "security": { "classification": "private" }
     },
     {
-      "id": "docs_corpus_create",
-      "id_status": "permanent",
-      "name": "docs.corpus.create",
-      "description": "Create a corpus.",
+      "id": "cloud_list_folder",
+      "name": "cloud.list_folder",
+      "description": "List files and folders at a path on a cloud service (Dropbox, Google Drive). Use path='' for root.",
       "inputs": [
-        {
-          "name": "name",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "source_type",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "source_config",
-          "type": "object",
-          "required": false
-        }
+        { "name": "service_id", "type": "string", "required": true },
+        { "name": "path", "type": "string", "required": false },
+        { "name": "cursor", "type": "string", "required": false }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.corpus.create"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "cloud-docs", "mcp_tool": "cloud.list_folder" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
+    },
+    {
+      "id": "cloud_get_metadata",
+      "name": "cloud.get_metadata",
+      "description": "Get metadata (size, modified, type) for a file on a cloud service.",
+      "inputs": [
+        { "name": "service_id", "type": "string", "required": true },
+        { "name": "path", "type": "string", "required": true }
+      ],
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "cloud-docs", "mcp_tool": "cloud.get_metadata" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
+    },
+    {
+      "id": "cloud_download",
+      "name": "cloud.download",
+      "description": "Download a file from a cloud service. Returns { content_base64, size, mime, name }.",
+      "inputs": [
+        { "name": "service_id", "type": "string", "required": true },
+        { "name": "path", "type": "string", "required": true }
+      ],
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "cloud-docs", "mcp_tool": "cloud.download" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
+    },
+    {
+      "id": "cloud_upload",
+      "name": "cloud.upload",
+      "description": "Upload a CAS artifact to a cloud service. Requires artifact_hash from the CAS manifest.",
+      "inputs": [
+        { "name": "service_id", "type": "string", "required": true },
+        { "name": "path", "type": "string", "required": true },
+        { "name": "artifact_hash", "type": "string", "required": true },
+        { "name": "mode", "type": "string", "required": false },
+        { "name": "autorename", "type": "boolean", "required": false }
+      ],
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "cloud-docs", "mcp_tool": "cloud.upload" },
+      "policy": { "allowed": "with_approval" },
+      "security": { "classification": "private" }
+    },
+    {
+      "id": "cloud_create_corpus",
+      "name": "cloud.create_corpus",
+      "description": "Create a cloud-backed corpus with auto-sync. Use for Dropbox/Drive instead of docs.corpus.create + manual ingest.",
+      "inputs": [
+        { "name": "name", "type": "string", "required": true },
+        { "name": "service_id", "type": "string", "required": true },
+        { "name": "path", "type": "string", "required": false }
+      ],
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "cloud-docs", "mcp_tool": "cloud.create_corpus" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
       "id": "docs_corpus_list",
-      "id_status": "permanent",
       "name": "docs.corpus.list",
-      "description": "List corpora.",
+      "description": "List corpora accessible to the caller.",
       "inputs": [],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.corpus.list"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.corpus.list" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
       "id": "docs_corpus_delete",
-      "id_status": "permanent",
       "name": "docs.corpus.delete",
       "description": "Delete a corpus (destructive).",
       "inputs": [
-        {
-          "name": "corpus_id",
-          "type": "string",
-          "required": true
-        }
+        { "name": "corpus_id", "type": "string", "required": true }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.corpus.delete"
-      },
-      "policy": {
-        "allowed": "with_approval"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.corpus.delete" },
+      "policy": { "allowed": "with_approval" },
+      "security": { "classification": "private" }
     },
     {
       "id": "docs_stats",
-      "id_status": "permanent",
       "name": "docs.stats",
-      "description": "Corpus counts.",
+      "description": "Corpus counts (files, chunks). Omit corpus_id for totals across all.",
       "inputs": [
-        {
-          "name": "corpus_id",
-          "type": "string",
-          "required": false
-        }
+        { "name": "corpus_id", "type": "string", "required": false }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.stats"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.stats" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
+    },
+    {
+      "id": "docs_overview",
+      "name": "docs.overview",
+      "description": "One-call dashboard: all corpora + file counts + recent files + totals. Prefer over corpus.list + list_files loops for 'what do I have?' questions.",
+      "inputs": [
+        { "name": "recent_limit", "type": "number", "required": false }
+      ],
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.overview" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
       "id": "docs_list_files",
-      "id_status": "permanent",
       "name": "docs.list_files",
       "description": "List files in a corpus.",
       "inputs": [
-        {
-          "name": "corpus_id",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "status",
-          "type": "string",
-          "required": false
-        }
+        { "name": "corpus_id", "type": "string", "required": true },
+        { "name": "status", "type": "string", "required": false }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.list_files"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.list_files" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
       "id": "docs_list_sections",
-      "id_status": "permanent",
       "name": "docs.list_sections",
-      "description": "TOC of a file (heading_path tree).",
+      "description": "TOC-style section listing for a file (heading_path tree).",
       "inputs": [
-        {
-          "name": "file_id",
-          "type": "string",
-          "required": true
-        }
+        { "name": "file_id", "type": "string", "required": true }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.list_sections"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
-    },
-    {
-      "id": "docs_search",
-      "id_status": "permanent",
-      "name": "docs.search",
-      "description": "Semantic search. REQUIRED param name is `query` (the search text). Optional params: `corpus_id`, `file_id`, `heading_prefix`, `top_k` (NOT `k`, NOT `limit` — it is spelled `top_k` with an underscore). Never pass a param named `k`.",
-      "inputs": [
-        {
-          "name": "query",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "corpus_id",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "file_id",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "heading_prefix",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "top_k",
-          "type": "number",
-          "required": false
-        }
-      ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.search"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
-    },
-    {
-      "id": "docs_neighbor_chunks",
-      "id_status": "permanent",
-      "name": "docs.neighbor_chunks",
-      "description": "Context expansion around a chunk.",
-      "inputs": [
-        {
-          "name": "chunk_id",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "before",
-          "type": "number",
-          "required": false
-        },
-        {
-          "name": "after",
-          "type": "number",
-          "required": false
-        }
-      ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.neighbor_chunks"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.list_sections" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
       "id": "docs_file_get",
-      "id_status": "permanent",
       "name": "docs.file.get",
       "description": "Full file text + chunks.",
       "inputs": [
-        {
-          "name": "file_id",
-          "type": "string",
-          "required": true
-        }
+        { "name": "file_id", "type": "string", "required": true }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.file.get"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.file.get" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
-      "id": "docs_ingest_file",
-      "id_status": "permanent",
-      "name": "docs.ingest.file",
-      "description": "Ingest a document (text or base64).",
+      "id": "docs_file_summary",
+      "name": "docs.file.summary",
+      "description": "Cached LLM-generated TLDR + key topics + key entities for one file.",
       "inputs": [
-        {
-          "name": "corpus_id",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "source_id",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "content_base64",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "path",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "mime",
-          "type": "string",
-          "required": false
-        }
+        { "name": "file_id", "type": "string", "required": true },
+        { "name": "force", "type": "boolean", "required": false }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "docs-index-mcp",
-        "mcp_tool": "docs.ingest.file"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.file.summary" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
-      "id": "dropbox_list_folder",
-      "name": "dropbox.list_folder",
-      "description": "List files and folders at a Dropbox path. Use this for directory listings, 'show me files', 'what's in folder X'. Pass path='' for root, or path='/FolderName' for a subfolder. Prefer this over dropbox.search when the user wants to see directory structure.",
+      "id": "docs_search",
+      "name": "docs.search",
+      "description": "Semantic search. REQUIRED param is `query`. Optional: `corpus_id`, `file_id`, `heading_prefix`, `top_k` (NOT `k`, NOT `limit`).",
       "inputs": [
-        {
-          "name": "path",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "recursive",
-          "type": "boolean",
-          "required": false
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false
-        },
-        {
-          "name": "limit",
-          "type": "number",
-          "required": false
-        }
+        { "name": "query", "type": "string", "required": true },
+        { "name": "corpus_id", "type": "string", "required": false },
+        { "name": "file_id", "type": "string", "required": false },
+        { "name": "heading_prefix", "type": "string", "required": false },
+        { "name": "top_k", "type": "number", "required": false }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "dropbox-mcp",
-        "mcp_tool": "dropbox.list_folder"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.search" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     },
     {
-      "id": "dropbox_get_metadata",
-      "name": "dropbox.get_metadata",
-      "description": "Get metadata (size, modified time, type) for a specific Dropbox path.",
+      "id": "docs_answer",
+      "name": "docs.answer",
+      "description": "High-level RAG: one call does search + neighbor expansion + cited answer. Use for 'what does X say about Y' questions.",
       "inputs": [
-        {
-          "name": "path",
-          "type": "string",
-          "required": true
-        }
+        { "name": "query", "type": "string", "required": true },
+        { "name": "corpus_id", "type": "string", "required": false },
+        { "name": "top_k", "type": "number", "required": false },
+        { "name": "expand_neighbors", "type": "boolean", "required": false }
       ],
-      "output": {
-        "type": "object"
-      },
-      "source": {
-        "type": "mcp_bridge",
-        "connection_id": "dropbox-mcp",
-        "mcp_tool": "dropbox.get_metadata"
-      },
-      "policy": {
-        "allowed": "always"
-      },
-      "security": {
-        "classification": "private"
-      }
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.answer" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
+    },
+    {
+      "id": "docs_analyze",
+      "name": "docs.analyze",
+      "description": "Multi-doc structured comparison/analysis. Returns {per_doc, comparison, conflicts}.",
+      "inputs": [
+        { "name": "query", "type": "string", "required": true },
+        { "name": "file_ids", "type": "array", "required": false },
+        { "name": "corpus_ids", "type": "array", "required": false }
+      ],
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.analyze" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
+    },
+    {
+      "id": "docs_neighbor_chunks",
+      "name": "docs.neighbor_chunks",
+      "description": "Context expansion around a chunk (for '§3 above' style references).",
+      "inputs": [
+        { "name": "chunk_id", "type": "string", "required": true },
+        { "name": "before", "type": "number", "required": false },
+        { "name": "after", "type": "number", "required": false }
+      ],
+      "output": { "type": "object" },
+      "source": { "type": "mcp_bridge", "connection_id": "docs-index-mcp", "mcp_tool": "docs.neighbor_chunks" },
+      "policy": { "allowed": "always" },
+      "security": { "classification": "private" }
     }
   ],
   "policy": {
     "guardrails": {
       "never": [
-        "Answer factual content questions without calling docs.search first",
+        "Answer factual content questions without calling docs.search (or docs.answer/docs.analyze) first",
         "Invent file paths, chunk contents, or heading paths",
         "Synthesize a legal/technical interpretation — hand off to contract-analyst",
-        "Upload, delete, or modify content without explicit user confirmation"
+        "Upload, delete, or modify content without explicit user confirmation",
+        "Invent artifact_hash values — always read the hash from the CAS manifest in the prompt",
+        "Use run_python_script, code execution, or any scripting tool for document retrieval. Document Q&A is handled EXCLUSIVELY via docs.* MCP tools.",
+        "Pass a corpus_id that was not returned by docs.corpus.list in THIS job. Corpus ids from previous sessions, memory, or caches are stale — always refetch."
       ],
       "always": [
-        "When the user asks about directory structure, folder contents, 'show files', or similar listing requests, use dropbox.list_folder with path='' for root (or a specific path) — NEVER use dropbox.search with an empty query (Dropbox's search API rejects empty queries with invalid_argument).",
-        "Use dropbox.search ONLY when the user provides specific keywords/text to search for. Never pass empty string as the query."
+        "When the user asks about directory structure, folder contents, 'show files', or similar listing requests, use cloud.list_folder with service_id='dropbox' and path='' for root (or a specific path). Do NOT use docs.search for folder listings — docs.search is for content, not file enumeration.",
+        "To connect or re-auth a cloud source, call platform.auth.ensureConnected({service_id}). Never use any provider-specific login tool.",
+        "For cloud corpus creation, always use cloud.create_corpus — it wires up auto-sync. Do not manually walk/download/ingest.",
+        "When answering any content question about indexed documents, the FIRST tool call must be docs.corpus.list."
       ]
     }
   },
@@ -635,26 +339,10 @@
       "level": "autonomous"
     }
   },
-  "triggers": [
-    {
-      "id": "auto-sync-dropbox-corpora",
-      "type": "schedule",
-      "enabled": true,
-      "concurrency": 1,
-      "every": "PT1H",
-      "prompt": "Sync Dropbox-backed corpora. 1) call docs.corpus.list. 2) for each corpus where source_type=='dropbox', call dropbox.index_folder(corpus_id, path: source_config.path, recursive: true, use_cursor: true). 3) report ONLY if total indexed/skipped/failed > 0 across all corpora — otherwise say nothing (silent run). 4) if no dropbox corpora exist, do nothing."
-    }
-  ],
-  "policy.guardrails.never": [
-    "Use run_python_script, code execution, or any scripting tool for document retrieval. Document Q&A is handled EXCLUSIVELY via docs.* MCP tools.",
-    "Pass a corpus_id that was not returned by docs.corpus.list in THIS job. Corpus ids from previous sessions, memory, or caches are stale — always refetch."
-  ],
-  "policy.guardrails.always": [
-    "When answering any content question about indexed documents, the FIRST tool call must be docs.corpus.list. The SECOND must be docs.search. No other order is acceptable."
-  ],
+  "triggers": [],
   "bootstrap_tools": [
     "sys.getArtifact",
     "docs.search",
-    "dropbox.upload"
+    "docs.corpus.list"
   ]
 }
